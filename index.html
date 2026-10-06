@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="立威牙周">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#F3F7F7">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<title>立威牙周檢查</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F3F7F7;--surface:#FFFFFF;--ink:#14232A;--muted:#5E6E75;--line:#D6DFE1;--line-strong:#AFC0C4;
+  --accent:#0D6B70;--accent-ink:#FFFFFF;--accent-soft:#E0EFEF;
+  --ok:#2C8A5E;--ok-bg:#E2F2E9;--warn:#A86C12;--warn-bg:#FBEFD6;--deep:#BF3329;--deep-bg:#FBE1DE;
+  --pl:#3A5FC4;--hatch:#E9EEEF;
+  --num:"IBM Plex Sans","Noto Sans TC",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --txt:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --cw:clamp(22px,calc((100vw - 92px)/48),30px);
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0E181B;--surface:#162428;--ink:#E5EEF0;--muted:#94A6AC;--line:#28393E;--line-strong:#41565C;
+  --accent:#4DB2B4;--accent-ink:#0E181B;--accent-soft:#183336;
+  --ok:#5CC48E;--ok-bg:#16301F;--warn:#E2AE4A;--warn-bg:#33290F;--deep:#EF7469;--deep-bg:#3A1C19;--pl:#86A2F2;--hatch:#1C2C30;}}
+:root[data-theme="dark"]{
+  --bg:#0E181B;--surface:#162428;--ink:#E5EEF0;--muted:#94A6AC;--line:#28393E;--line-strong:#41565C;
+  --accent:#4DB2B4;--accent-ink:#0E181B;--accent-soft:#183336;
+  --ok:#5CC48E;--ok-bg:#16301F;--warn:#E2AE4A;--warn-bg:#33290F;--deep:#EF7469;--deep-bg:#3A1C19;--pl:#86A2F2;--hatch:#1C2C30;}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--txt);font-size:16px;line-height:1.5;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1240px;margin:0 auto;padding:0 16px}
+[hidden]{display:none!important}
+
+/* top bar */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);border-bottom:1px solid var(--line)}
+.bar .wrap{display:flex;align-items:center;gap:10px;min-height:56px}
+.bar h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.02em;flex:1;min-width:0}
+.bar h1 small{display:block;font-size:12px;font-weight:400;color:var(--muted);letter-spacing:0}
+.btn{border:1px solid var(--line-strong);background:var(--surface);border-radius:10px;padding:8px 14px;min-height:40px;font-size:15px}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:500}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.danger{color:var(--deep);border-color:var(--deep)}
+.btn:disabled{opacity:.45;cursor:default}
+
+/* home */
+.search{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 12px;margin:14px 0 6px}
+.daygroup h2{font-size:13px;color:var(--muted);font-weight:500;margin:18px 0 6px}
+.rec{display:grid;grid-template-columns:auto 1fr auto;gap:2px 14px;align-items:center;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px}
+.rec .code{font-family:var(--num);font-weight:600;font-variant-numeric:tabular-nums;font-size:16px}
+.rec .who{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rec .meta{grid-column:2/3;font-size:13px;color:var(--muted)}
+.rec .bop{grid-row:1/3;grid-column:3;text-align:right;font-family:var(--num);font-size:13px;color:var(--muted)}
+.rec .bop b{display:block;font-size:17px;color:var(--ink)}
+.empty{padding:48px 8px;text-align:center;color:var(--muted)}
+.empty .btn{margin-top:14px}
+
+/* editor */
+.stats{display:flex;gap:6px;overflow-x:auto;padding:10px 0 4px;scrollbar-width:none}
+.stat{flex:0 0 auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px 12px;min-width:92px}
+.stat span{display:block;font-size:12px;color:var(--muted)}
+.stat b{font-family:var(--num);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.modes{display:flex;gap:4px;overflow-x:auto;padding:8px 0;scrollbar-width:none}
+.mode{flex:0 0 auto;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 14px;font-size:15px}
+.mode[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.hint{font-size:13px;color:var(--muted);margin:2px 0 8px}
+
+.chartbox{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 8px;-webkit-overflow-scrolling:touch}
+.arch{display:grid;grid-template-columns:52px repeat(48,var(--cw));width:max-content}
+.arch+.arch{margin-top:14px;padding-top:14px;border-top:2px dashed var(--line)}
+.lab{font-size:12px;color:var(--muted);display:flex;align-items:center;padding-right:6px;position:sticky;left:-8px;background:var(--surface);z-index:2;line-height:1.15}
+.c{height:34px;border:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:transparent;padding:0;font-family:var(--num);font-size:15px;font-weight:500;font-variant-numeric:tabular-nums;display:flex;align-items:center;justify-content:center;position:relative}
+.c.t0{border-left:1px solid var(--line-strong)}
+.c.mid{border-left:3px solid var(--ink)}
+.c.ok{background:var(--ok-bg);color:var(--ok)}
+.c.warn{background:var(--warn-bg);color:var(--warn)}
+.c.deep{background:var(--deep-bg);color:var(--deep);font-weight:600}
+.c.miss{background:repeating-linear-gradient(135deg,var(--hatch) 0 4px,transparent 4px 8px);cursor:default}
+.c.cur{box-shadow:inset 0 0 0 2.5px var(--accent);z-index:1}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--deep)}
+.dot.pl{background:var(--pl)}
+.dot.no{width:5px;height:5px;background:var(--line-strong)}
+.tn{grid-column:span 3;height:42px;border:0;border-left:1px solid var(--line-strong);background:transparent;font-family:var(--num);font-weight:600;font-size:15px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;padding:0}
+.tn.mid{border-left:3px solid var(--ink)}
+.tn.miss>b{text-decoration:line-through;color:var(--muted)}
+.tn.sel{background:var(--accent-soft)}
+.tn i{font-style:normal;font-size:10px;font-weight:500;color:var(--accent);min-height:11px}
+
+.dist{margin:14px 0 6px}
+.dist .track{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--line)}
+.dist .track span{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+
+.pad{position:sticky;bottom:0;z-index:15;background:var(--bg);border-top:1px solid var(--line);margin-top:14px;padding:10px 0 calc(10px + env(safe-area-inset-bottom,0px))}
+.padhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;font-size:14px}
+.padhead b{font-family:var(--num);font-size:16px}
+.keys{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;max-width:560px}
+.key{border:1px solid var(--line);background:var(--surface);border-radius:10px;min-height:48px;font-family:var(--num);font-size:20px;font-weight:500}
+.key:active{background:var(--accent-soft)}
+.key.yes{color:var(--deep);font-size:18px}
+.key.plyes{color:var(--pl);font-size:18px}
+.key.wide{grid-column:span 2;font-size:16px;font-family:var(--txt)}
+.navrow{display:flex;gap:6px;margin-top:6px;max-width:560px}
+.navrow .btn{flex:1;min-height:44px}
+
+.toothpanel{display:grid;gap:12px;max-width:640px}
+.fieldrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fieldrow>span{width:72px;font-size:14px;color:var(--muted)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line-strong);background:var(--surface);border-radius:8px;min-width:44px;min-height:40px;padding:4px 10px;font-family:var(--num);font-size:15px}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+
+/* sheets */
+.sheet{position:fixed;inset:0;z-index:50;background:rgba(10,20,24,.45);display:flex;align-items:flex-end;justify-content:center}
+.sheet>div{background:var(--bg);width:100%;max-width:560px;max-height:92%;overflow:auto;border-radius:18px 18px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px))}
+@media (min-width:700px){.sheet{align-items:center}.sheet>div{border-radius:18px}}
+.sheet h3{margin:0 0 12px;font-size:18px}
+.form{display:grid;gap:12px}
+.form label{display:grid;gap:4px;font-size:14px;color:var(--muted)}
+.form input,.form select,.form textarea{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 12px;color:var(--ink);font-size:16px;width:100%}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.codepreview{background:var(--accent-soft);border-radius:10px;padding:10px 12px;font-size:14px}
+.codepreview b{font-family:var(--num);font-size:20px;display:block;color:var(--accent)}
+.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+.warnbox{background:var(--warn-bg);color:var(--ink);border-radius:10px;padding:10px 12px;font-size:14px}
+
+/* settings */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0}
+.card h2{font-size:16px;margin:0 0 4px}
+.card p{margin:0 0 12px;font-size:14px;color:var(--muted)}
+.card .actions{justify-content:flex-start;margin-top:0}
+.doclist{display:grid;gap:6px;margin-bottom:10px}
+.doclist div{display:flex;align-items:center;gap:10px;font-size:15px}
+.doclist code{font-family:var(--num);color:var(--accent)}
+textarea.raw{width:100%;min-height:140px;font-family:var(--num);font-size:12px;border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--bg)}
+
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;z-index:60;max-width:90vw}
+@media (prefers-reduced-motion:no-preference){.toast{animation:pop .18s ease-out}@keyframes pop{from{opacity:0;transform:translate(-50%,8px)}}}
+@media (max-width:560px){.bar h1{font-size:16px}.bar h1 small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar .btn{padding:6px 10px;font-size:14px;min-height:36px}.bar .wrap{gap:6px;padding:0 10px}}
+.exams{display:flex;gap:8px;margin-top:12px}
+.exam{flex:1;border:1px solid var(--line-strong);background:var(--surface);border-radius:12px;padding:8px 12px;text-align:left;font-size:15px;font-weight:600}
+.exam small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+.exam[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1.5px var(--accent);background:var(--accent-soft)}
+.exports{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0 2px}
+.exports .sep{width:1px;height:30px;background:var(--line-strong);margin:0 2px}
+.tag{color:var(--ok);font-weight:500}
+.exbadge{display:inline-block;background:var(--ink);color:var(--bg);font-size:12px;border-radius:6px;padding:1px 7px;vertical-align:1px}
+#printRoot{position:fixed;left:-20000px;top:0}
+/* ---- print pages (fixed light palette) ---- */
+.pg{background:#fff;color:#1a1a1a;box-sizing:border-box;overflow:hidden;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Noto Sans CJK TC",sans-serif}
+.pg-l{width:1123px;height:794px;padding:34px 38px}
+.pg-p{width:794px;height:1123px;padding:34px 30px}
+.pg table{border-collapse:collapse}
+.sh{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:18px;border-bottom:2px solid #0D6B70;padding-bottom:10px}
+.sh h1{font-size:26px;margin:0;letter-spacing:.04em}
+.sh p{margin:2px 0 0;color:#5E6E75;font-size:13px}
+.info th{font-weight:400;color:#5E6E75;padding:0 6px 0 18px;font-size:13px}
+.info td{font-size:16px;font-weight:700}
+table.g{width:100%;table-layout:fixed}
+.g th,.g td{border:1px solid #B9C5C8;height:31px;text-align:center;font-size:14px;padding:0}
+.g th{font-weight:500}
+.g .l1{background:#E0EFEF;font-size:15px}
+.g .l2{background:#EEF5F5;font-size:12px;color:#3F5056}
+.g td.t0{border-left:1.5px solid #6B7B81}
+.g td.mid{border-left:3px solid #14232A}
+.g td.mx{background:#E6E9EA}
+.g tr.post td,.g tr.post th.l2{border-bottom-color:#8C9CA1}
+.g .trow th{background:#14232A;color:#fff}
+.g .ptn{font-weight:700;font-size:15px;background:#F3F7F7;height:32px}
+.g .ptn small{font-size:10px;margin-left:3px;color:#5E6E75;font-weight:500}
+.g .tmiss{text-decoration:line-through;color:#8A9599}
+.sfoot{margin-top:18px}
+.leg{display:flex;gap:24px;font-size:13px;color:#3F5056;margin-bottom:12px}
+.leg i{display:inline-block;width:14px;height:14px;border:1px solid;border-radius:3px;vertical-align:-2px;margin-right:6px}
+.sboxes{display:flex;gap:12px}
+.sbox{flex:1;border:1px solid #CFD9DB;border-radius:10px;padding:10px 14px}
+.sbox h4{margin:0 0 6px;font-size:14px;display:flex;justify-content:space-between}
+.sbox h4 span{color:#5E6E75;font-weight:400}
+.sgrid{display:grid;grid-template-columns:repeat(4,1fr);text-align:center;font-size:12px;color:#5E6E75}
+.sgrid b{display:block;font-size:24px;line-height:1.25;color:#14232A}
+.sbox p{margin:6px 0 0;font-size:12px;color:#5E6E75}
+.sbox .na{font-size:14px;padding:16px 0}
+.sbox.imp{flex:0 0 210px;background:#E0EFEF;border-color:#0D6B70}
+.imp .big{font-size:34px;font-weight:700;color:#0D6B70;line-height:1.2}
+.ah1{text-align:center;font-size:18px;font-weight:700;margin-bottom:10px;line-height:1.35}
+.ah1 span{font-size:12px;font-weight:500}
+table.ainfo{width:100%;margin-bottom:10px;table-layout:fixed}
+.ainfo th,.ainfo td{border:1px solid #000;font-size:10.5px;padding:2px;text-align:center;height:34px;line-height:1.2}
+.ainfo th{font-weight:500;background:#fff}
+.ainfo td{font-size:12px;font-weight:500}
+table.ag{width:100%;table-layout:fixed}
+.ag th,.ag td{border:1px solid #000;height:25px;font-size:10.5px;text-align:center;padding:0;line-height:1.1}
+.ag th{font-weight:500}
+.ag th.y,.ag th.ph{background:#FFFF99}
+.ag th.ph{font-size:10px}
+.ag tr.pre td{background:#FFFFCC}
+.ag td.nf{background:#fff!important}
+.ag td.mx{background:#D5D5D5!important}
+.ag th.tl{background:#F08080}
+.ag td.tp{background:#F4A6CD!important;font-weight:600;font-size:11px}
+.ag th.nl{background:#99CCFF}
+.ag td.np{background:#CCCCFF;font-size:9.5px}
+.ag td.mid{border-left:2px solid #000}
+.ag tr.gap td{border:0;height:12px;background:#fff}
+.anote{margin-top:14px;font-size:12.5px;line-height:2}
+.anote u{display:inline-block;min-width:40px;text-align:center}
+.pblk{margin-top:16px}
+table.pinfo{width:100%;margin-bottom:4px;table-layout:fixed}
+.pinfo th,.pinfo td{border:1px solid #000;font-size:11px;height:26px;font-weight:500;padding:0 4px}
+.pinfo th{width:62px}.pinfo th.w{width:170px}.pinfo td{text-align:center}
+.pg2 th,.pg2 td{height:21px}
+.pg2 td.plq{background:#E8776E}
+.plegend{font-size:11px;margin-top:14px;color:#333}
+</style>
+</head>
+<body>
+<section id="home">
+  <header class="bar"><div class="wrap">
+    <h1>立威牙周檢查<small>Periodontal Chart</small></h1>
+    <button class="btn ghost" data-go="settings">備份與設定</button>
+    <button class="btn primary" data-act="new">新增病人</button>
+  </div></header>
+  <main class="wrap">
+    <div id="storageWarn" class="warnbox" style="margin-top:14px" hidden>這個瀏覽器目前無法儲存資料，關閉頁面後內容會消失。請改用 Safari 或 Chrome 的一般模式（非私密瀏覽）。</div>
+    <input id="q" class="search" type="search" placeholder="輸入病人姓名查詢（回診請開舊檔）">
+    <div id="list"></div>
+  </main>
+</section>
+<section id="editor" hidden>
+  <header class="bar"><div class="wrap">
+    <button class="btn ghost" data-go="home" aria-label="返回列表">‹ 列表</button>
+    <h1 id="edTitle"></h1>
+    <button class="btn" data-act="info">基本資料</button>
+  </div></header>
+  <main class="wrap">
+    <div class="exams" id="exams" role="group" aria-label="檢查階段"></div>
+    <div class="stats" id="stats"></div>
+    <div class="exports">
+      <button class="btn" data-act="simplePdf">簡易版 PDF</button>
+      <button class="btn" data-act="simpleXlsx">簡易版 Excel</button>
+      <span class="sep" aria-hidden="true"></span>
+      <button class="btn" data-act="auditPdf">健保抽審 PDF</button>
+    </div>
+    <div class="modes" id="modes" role="group" aria-label="輸入項目"></div>
+    <p class="hint" id="modeHint"></p>
+    <div class="chartbox" id="chart"></div>
+    <div class="dist" id="dist"></div>
+    <div class="pad" id="pad"></div>
+  </main>
+</section>
+<section id="settings" hidden>
+  <header class="bar"><div class="wrap">
+    <button class="btn ghost" data-go="home">‹ 列表</button>
+    <h1>備份與設定</h1>
+  </div></header>
+  <main class="wrap" id="setBody"></main>
+</section>
+<div id="sheet" class="sheet" hidden><div id="sheetBody"></div></div>
+<div id="toast" class="toast" hidden></div>
+<div id="printRoot" aria-hidden="true"></div>
+<script>(function(){
+"use strict";
+/* ================= constants ================= */
+const KEY="lw_perio_v2";
+const UR=[18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28];
+const LR=[48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38];
+const ALL=UR.concat(LR);
+const FURC={};[16,17,18,26,27,28].forEach(t=>FURC[t]=["b","m","d"]);[14,24].forEach(t=>FURC[t]=["m","d"]);[36,37,38,46,47,48].forEach(t=>FURC[t]=["b","l"]);
+const FURC_LAB={b:"頰側",m:"近心",d:"遠心",l:"舌側"};
+const ROMAN=["0","I","II","III"];
+const EXN={pre:"初診（術前）",post:"再評估（術後）"};
+const MODES=[
+  {k:"pd",n:"探測深度 PD",h:"點數字後自動跳下一格。順序：上顎頰側 → 上顎腭側 → 下顎舌側 → 下顎頰側，缺牙自動略過。"},
+  {k:"gm",n:"牙齦位置 GM",h:"以 CEJ 為基準：牙齦退縮為正數，牙齦覆蓋過 CEJ 為負數。"},
+  {k:"cal",n:"附連喪失 CAL",h:"CAL = PD + GM，自動計算，不需輸入。"},
+  {k:"bop",n:"出血 BOP",h:"每個部位選「出血」或「無」，自動跳下一格。"},
+  {k:"pl",n:"牙菌斑",h:"每個部位選「有」或「無」，自動跳下一格。"},
+  {k:"tooth",n:"牙齒狀態",h:"點牙位號碼，設定缺牙、植體、動搖度、角化牙齦與根分岔。缺牙與植體初診、再評估共用。"}
+];
+const DEFAULT_DOCTORS=[{zh:"黃振邦",en:"Huang"},{zh:"蔡世軒",en:"Tsai"}];
+const LIB={
+  h2c:"https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+  pdf:"https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+  xls:"https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"
+};
+
+/* ================= helpers ================= */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,9);
+const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+const ymd=d=>String(d||"").replace(/-/g,"");
+function toast(m){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2800)}
+function siteOrder(t){const q=Math.floor(t/10);return(q===1||q===4)?["d","c","m"]:["m","c","d"]}
+function sk(t){const o=[];["f","l"].forEach(s=>["d","c","m"].forEach(p=>o.push(t+s+p)));return o}
+const blankEx=()=>({tooth:{},sites:{}});
+function T(r,t){return r.teeth[t]||(r.teeth[t]={missing:false,implant:false})}
+function ET(r,k,t){const e=r.ex[k];return e.tooth[t]||(e.tooth[t]={mob:null,km:null,furc:{}})}
+function SI(r,k,key){const e=r.ex[k];return e.sites[key]||(e.sites[key]={pd:null,gm:null,bop:false,pl:false})}
+function cal(s){return s&&s.pd!=null?s.pd+(s.gm||0):null}
+function hasData(e){return!!e&&Object.keys(e.sites).some(k=>{const s=e.sites[k];return s.pd!=null||s.bopSet||s.plSet})}
+const loaded={};
+function loadLib(url){if(loaded[url])return loaded[url];
+  loaded[url]=new Promise((res,rej)=>{const s=document.createElement("script");s.src=url;s.onload=res;s.onerror=()=>{delete loaded[url];rej(new Error("元件載入失敗，請確認網路連線後再試"))};document.head.appendChild(s)});
+  return loaded[url];}
+
+/* ================= storage ================= */
+let storageOK=true;
+function migrateV1(old){
+  return (old.records||[]).map(r=>{
+    const teeth={},tooth={};
+    Object.keys(r.teeth||{}).forEach(t=>{const x=r.teeth[t];teeth[t]={missing:!!x.missing,implant:!!x.implant};tooth[t]={mob:x.mob==null?null:x.mob,km:x.km==null?null:x.km,furc:x.furc||{}}});
+    return {id:r.id,code:r.code,doctor:r.doctor,postDoctor:null,name:r.name||"",idNo:"",chartNo:r.chartNo||"",gender:r.gender||"",age:r.age||"",note:r.note||"",
+      preDate:r.date||today(),postDate:"",teeth,ex:{pre:{tooth,sites:r.sites||{}},post:blankEx()},createdAt:r.createdAt||Date.now(),updatedAt:r.updatedAt||Date.now()};
+  });
+}
+function load(){
+  try{
+    const raw=localStorage.getItem(KEY);
+    if(raw){const s=JSON.parse(raw);s.records=s.records||[];if(!s.doctors||!s.doctors.length)s.doctors=DEFAULT_DOCTORS.slice();return s}
+    const v1=localStorage.getItem("lw_perio_v1");
+    if(v1){const o=JSON.parse(v1);return{records:migrateV1(o),doctors:o.doctors&&o.doctors.length?o.doctors:DEFAULT_DOCTORS.slice(),lastBackupAt:0}}
+  }catch(e){storageOK=false}
+  return{records:[],doctors:DEFAULT_DOCTORS.slice(),lastBackupAt:0};
+}
+let S=load();
+try{localStorage.setItem(KEY+"_t","1");localStorage.removeItem(KEY+"_t")}catch(e){storageOK=false}
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(S));storageOK=true}catch(e){storageOK=false;toast("儲存失敗：此瀏覽器無法寫入資料")}}
+
+/* ================= file delivery ================= */
+let DL=null;
+(async function(){
+  if(!(window.claude&&window.claude.use))return;
+  try{DL=await window.claude.use("downloads")}catch(e){DL=null}
+})();
+const MIME={pdf:"application/pdf",xlsx:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",json:"application/json"};
+async function deliver(filename,blob){
+  const ext=filename.split(".").pop();
+  if(DL){try{await DL.save({filename,data:blob});toast("已儲存 "+filename);return true}catch(e){if(e&&e.code==="declined"){toast("已取消");return false}}}
+  const touch=window.matchMedia("(pointer:coarse)").matches;
+  if(touch&&navigator.canShare){
+    try{const f=new File([blob],filename,{type:MIME[ext]||"application/octet-stream"});
+      if(navigator.canShare({files:[f]})){await navigator.share({files:[f]});return true}}
+    catch(e){if(e&&e.name==="AbortError"){toast("已取消");return false}}
+  }
+  const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);toast("已下載 "+filename);return true;
+}
+
+/* ================= stats ================= */
+function stats(r,k){
+  let present=0,bop=0,pl=0,n4=0,n5=0,n6=0,meas=0,sumPD=0,deepTeeth=0;const e=r.ex[k];
+  ALL.forEach(t=>{
+    if(T(r,t).missing)return;present++;let deep=false;
+    sk(t).forEach(key=>{const x=e.sites[key];if(!x)return;if(x.bop)bop++;if(x.pl)pl++;
+      if(x.pd!=null){meas++;sumPD+=x.pd;if(x.pd>=4&&x.pd<=5)n4++;if(x.pd>=6)n6++;if(x.pd>=5){n5++;deep=true}}});
+    if(deep)deepTeeth++;
+  });
+  const den=present*6;
+  return{present,bopP:den?bop/den*100:0,plP:den?pl/den*100:0,n4,n5,n6,meas,ok:meas-n4-n6,meanPD:meas?sumPD/meas:0,deepTeeth};
+}
+function improve(r){
+  let total=0,deep=0,imp=0;
+  ALL.forEach(t=>{const tt=T(r,t);if(tt.missing||tt.implant)return;total++;
+    const keys=sk(t);if(!keys.some(k=>{const a=r.ex.pre.sites[k];return a&&a.pd!=null&&a.pd>=5}))return;deep++;
+    if(keys.some(k=>{const a=r.ex.pre.sites[k],b=r.ex.post.sites[k];return a&&b&&a.pd!=null&&b.pd!=null&&a.pd-b.pd>=2}))imp++;});
+  return{total,deep,imp,rate:deep?imp/deep*100:null,hasPost:hasData(r.ex.post)};
+}
+
+/* ================= codes ================= */
+function nextCode(en,date,exceptId){
+  const p=en+ymd(date);let max=0;
+  S.records.forEach(r=>{if(r.id!==exceptId&&r.code&&r.code.indexOf(p)===0){const n=parseInt(r.code.slice(p.length),10);if(!isNaN(n)&&n>max)max=n}});
+  return p+String(max+1).padStart(2,"0");
+}
+function seqOf(r){
+  const out=[];const add=(teeth,surf,rev)=>{let c=[];teeth.forEach(t=>siteOrder(t).forEach(p=>c.push({t,surf,p})));if(rev)c.reverse();c.forEach(x=>{if(!T(r,x.t).missing)out.push(x)})};
+  add(UR,"f",false);add(UR,"l",true);add(LR,"l",false);add(LR,"f",true);return out;
+}
+
+/* ================= navigation ================= */
+let cur=null,ek="pre",mode="pd",cursor=0,selTooth=16;
+function go(v){["home","editor","settings"].forEach(id=>$("#"+id).hidden=id!==v);window.scrollTo(0,0);
+  if(v==="home")renderHome();if(v==="settings")renderSettings();if(v==="editor")renderEditor();}
+function openRec(r){cur=r;ek=hasData(r.ex.post)?"post":"pre";mode="pd";cursor=0;go("editor")}
+document.addEventListener("click",e=>{
+  const g=e.target.closest("[data-go]");if(g){go(g.dataset.go);return}
+  const a=e.target.closest("[data-act]");if(!a)return;const act=a.dataset.act;
+  if(act==="new")openNew();
+  else if(act==="info")openInfo();
+  else if(act==="simplePdf")run(a,()=>exportSimplePdf(cur));
+  else if(act==="simpleXlsx")run(a,()=>exportSimpleXlsx(cur));
+  else if(act==="auditPdf")auditCheck();
+});
+async function run(btn,fn){if(btn.disabled)return;const t=btn.textContent;btn.disabled=true;btn.textContent="產生中…";
+  try{await fn()}catch(e){toast(e&&e.message?e.message:"匯出失敗")}finally{btn.disabled=false;btn.textContent=t}}
+
+/* ================= home ================= */
+function renderHome(){
+  $("#storageWarn").hidden=storageOK;
+  const q=$("#q").value.trim().toLowerCase();
+  const recs=S.records.filter(r=>!q||[r.name,r.chartNo,r.code].join(" ").toLowerCase().includes(q))
+    .sort((a,b)=>(b.preDate||"").localeCompare(a.preDate||"")||(b.code||"").localeCompare(a.code||""));
+  const list=$("#list");
+  if(!S.records.length){list.innerHTML='<div class="empty">還沒有任何病人檔案。<br><button class="btn primary" data-act="new">新增第一位病人</button></div>';return}
+  if(!recs.length){list.innerHTML='<div class="empty">找不到「'+esc(q)+'」。如果是新病人，請按「新增病人」。</div>';return}
+  let h="",last="";
+  recs.forEach(r=>{
+    if(r.preDate!==last){if(last)h+="</div>";h+='<div class="daygroup"><h2>'+esc(r.preDate)+' 初診</h2>';last=r.preDate}
+    const post=hasData(r.ex.post);const st=stats(r,post?"post":"pre");
+    h+='<button class="rec" data-open="'+esc(r.id)+'"><span class="code">'+esc(r.code)+'</span><span class="who">'+esc(r.name||"（未填姓名）")+'</span>'+
+      '<span class="bop"><b>'+st.bopP.toFixed(0)+'%</b>BOP</span>'+
+      '<span class="meta" style="grid-column:1/3">'+esc(r.doctor.zh)+' 醫師'+(r.chartNo?'・病歷號 '+esc(r.chartNo):'')+'・'+(post?'<span class="tag">已再評估 '+esc(r.postDate||"")+'</span>':'待再評估')+'</span></button>';
+  });
+  list.innerHTML=h+"</div>";
+}
+$("#q").addEventListener("input",renderHome);
+$("#list").addEventListener("click",e=>{const b=e.target.closest("[data-open]");if(!b)return;const r=S.records.find(x=>x.id===b.dataset.open);if(r)openRec(r)});
+
+/* ================= sheets ================= */
+function openSheet(html){$("#sheetBody").innerHTML=html;$("#sheet").hidden=false}
+function closeSheet(){$("#sheet").hidden=true}
+$("#sheet").addEventListener("click",e=>{if(e.target.id==="sheet")closeSheet()});
+function docOptions(sel,allowBlank){return(allowBlank?'<option value="">（同初診醫師）</option>':"")+S.doctors.map((d,i)=>'<option value="'+i+'"'+(sel&&sel.en===d.en&&sel.zh===d.zh?" selected":"")+'>'+esc(d.zh)+'（'+esc(d.en)+'）</option>').join("")}
+function patientFields(r){
+  return '<div class="two"><label>病人姓名<input name="name" autocomplete="off" value="'+esc(r?r.name:"")+'"></label>'+
+  '<label>病歷號<input name="chartNo" autocomplete="off" value="'+esc(r?r.chartNo:"")+'"></label></div>'+
+  '<label>身分證字號（健保抽審用）<input name="idNo" autocomplete="off" autocapitalize="characters" value="'+esc(r?r.idNo:"")+'"></label>'+
+  '<div class="two"><label>性別<select name="gender">'+["","男","女"].map(s=>'<option'+(r&&r.gender===s?" selected":"")+'>'+s+'</option>').join("")+'</select></label>'+
+  '<label>年齡<input name="age" type="number" inputmode="numeric" min="0" max="120" value="'+esc(r?r.age:"")+'"></label></div>';
+}
+function readForm(){const f={};$("#sheetBody").querySelectorAll("[name]").forEach(el=>f[el.name]=el.value.trim());return f}
+function findSame(f){return S.records.filter(r=>(f.name&&r.name===f.name)||(f.chartNo&&r.chartNo===f.chartNo)||(f.idNo&&r.idNo&&r.idNo.toUpperCase()===f.idNo.toUpperCase()))}
+function openNew(){
+  if(!S.doctors.length){toast("請先到「備份與設定」新增醫師");return}
+  openSheet('<h3>新增病人（初診）</h3><div class="form"><label>初診醫師<select name="doc">'+docOptions(null)+'</select></label>'+
+    '<label>初診日期<input name="date" type="date" value="'+today()+'"></label>'+patientFields(null)+
+    '<div class="codepreview">檔名編號<b id="codePrev"></b></div><div id="dupWarn"></div></div>'+
+    '<div class="actions"><button class="btn" id="cancelNew">取消</button><button class="btn primary" id="okNew">建立並開始輸入</button></div>');
+  const upd=()=>{const f=readForm();const d=S.doctors[+f.doc];$("#codePrev").textContent=d?nextCode(d.en,f.date||today()):"";
+    const same=findSame(f);
+    $("#dupWarn").innerHTML=same.length?'<div class="warnbox">已經有相同姓名、病歷號或身分證字號的檔案。<b>回診請直接開啟舊檔</b>，在「再評估」輸入即可：'+
+      same.map(r=>'<button class="btn" style="margin:8px 8px 0 0" data-dup="'+esc(r.id)+'">'+esc(r.code)+'　'+esc(r.name)+'</button>').join("")+'</div>':""};
+  const body=$("#sheetBody");body.oninput=upd;body.onchange=upd;upd();
+  body.onclick=e=>{const b=e.target.closest("[data-dup]");if(b){const r=S.records.find(x=>x.id===b.dataset.dup);closeSheet();if(r)openRec(r)}};
+  $("#cancelNew").onclick=closeSheet;
+  $("#okNew").onclick=()=>{
+    const f=readForm();const d=S.doctors[+f.doc];if(!d)return;const date=f.date||today();
+    if(!f.name){toast("請填病人姓名，回診時才找得到");return}
+    const r={id:uid(),code:nextCode(d.en,date),doctor:{zh:d.zh,en:d.en},postDoctor:null,name:f.name,idNo:f.idNo.toUpperCase(),chartNo:f.chartNo,gender:f.gender,age:f.age,note:"",
+      preDate:date,postDate:"",teeth:{},ex:{pre:blankEx(),post:blankEx()},createdAt:Date.now(),updatedAt:Date.now()};
+    S.records.push(r);persist();closeSheet();openRec(r);
+  };
+}
+function openInfo(){
+  const r=cur;
+  openSheet('<h3>基本資料・'+esc(r.code)+'</h3><div class="form">'+patientFields(r)+
+    '<div class="two"><label>初診醫師<select name="doc">'+docOptions(r.doctor)+'</select></label><label>初診日期<input name="preDate" type="date" value="'+esc(r.preDate)+'"></label></div>'+
+    '<div class="two"><label>再評估醫師<select name="pdoc">'+docOptions(r.postDoctor,true)+'</select></label><label>再評估日期<input name="postDate" type="date" value="'+esc(r.postDate)+'"></label></div>'+
+    '<label>備註<textarea name="note" rows="2">'+esc(r.note)+'</textarea></label><p class="hint">檔名編號建立後固定不變。</p></div>'+
+    '<div class="actions"><button class="btn danger" id="delRec">刪除這位病人</button><span style="flex:1"></span><button class="btn" id="cInfo">取消</button><button class="btn primary" id="sInfo">儲存</button></div>');
+  $("#cInfo").onclick=closeSheet;
+  $("#sInfo").onclick=()=>{const f=readForm();const d=S.doctors[+f.doc];if(d)r.doctor={zh:d.zh,en:d.en};
+    const pd=f.pdoc===""?null:S.doctors[+f.pdoc];r.postDoctor=pd?{zh:pd.zh,en:pd.en}:null;
+    Object.assign(r,{name:f.name,chartNo:f.chartNo,idNo:f.idNo.toUpperCase(),gender:f.gender,age:f.age,preDate:f.preDate||r.preDate,postDate:f.postDate,note:f.note,updatedAt:Date.now()});
+    persist();closeSheet();renderEditor()};
+  $("#delRec").onclick=()=>{const ans=prompt("刪除後無法復原（初診與再評估都會刪除）。\n請輸入編號 "+r.code+" 以確認：");
+    if(ans===r.code){S.records=S.records.filter(x=>x.id!==r.id);persist();closeSheet();cur=null;toast("已刪除");go("home")}else if(ans!==null)toast("編號不符，未刪除")};
+}
+
+/* ================= editor ================= */
+function renderEditor(){
+  if(!cur){go("home");return}
+  $("#edTitle").innerHTML=esc(cur.name||"（未填姓名）")+'<small>'+esc(cur.code)+'・'+esc(cur.doctor.zh)+' 醫師</small>';
+  $("#exams").innerHTML=["pre","post"].map(k=>{const d=k==="pre"?cur.preDate:cur.postDate;
+    return'<button class="exam" data-ek="'+k+'" aria-pressed="'+(k===ek)+'">'+EXN[k]+'<small>'+(d?esc(d):(k==="post"?"尚未進行":""))+'</small></button>'}).join("");
+  $("#modes").innerHTML=MODES.map(m=>'<button class="mode" data-mode="'+m.k+'" aria-pressed="'+(m.k===mode)+'">'+m.n+'</button>').join("");
+  $("#modeHint").textContent=MODES.find(m=>m.k===mode).h;
+  renderChart();renderPad();
+}
+$("#exams").addEventListener("click",e=>{const b=e.target.closest("[data-ek]");if(!b)return;ek=b.dataset.ek;
+  if(ek==="post"&&!cur.postDate){cur.postDate=today();cur.updatedAt=Date.now();persist();toast("再評估日期設為今天，可在基本資料修改")}
+  cursor=0;renderEditor()});
+$("#modes").addEventListener("click",e=>{const b=e.target.closest("[data-mode]");if(!b)return;mode=b.dataset.mode;renderEditor()});
+
+function renderStats(){
+  const s=stats(cur,ek);
+  const it=(l,v)=>'<div class="stat"><span>'+l+'</span><b>'+v+'</b></div>';
+  let h=it("BOP",s.bopP.toFixed(1)+"%")+it("牙菌斑指數",s.plP.toFixed(1)+"%")+it("平均 PD",s.meas?s.meanPD.toFixed(1):"–")+it("PD≥5 部位",s.n5)+it("囊袋≥5mm 齒數",s.deepTeeth)+it("現存牙數",s.present);
+  if(ek==="post"){const im=improve(cur);if(im.hasPost&&im.rate!=null)h=it("改善率",im.rate.toFixed(0)+"%")+h}
+  $("#stats").innerHTML=h;
+  const tot=s.meas||1;
+  $("#dist").innerHTML=s.meas?'<div class="track"><span style="width:'+(s.ok/tot*100)+'%;background:var(--ok)"></span><span style="width:'+(s.n4/tot*100)+'%;background:var(--warn)"></span><span style="width:'+(s.n6/tot*100)+'%;background:var(--deep)"></span></div>'+
+    '<div class="legend"><span><i style="background:var(--ok)"></i>1–3 mm：'+s.ok+' 部位</span><span><i style="background:var(--warn)"></i>4–5 mm：'+s.n4+'</span><span><i style="background:var(--deep)"></i>≥6 mm：'+s.n6+'</span><span>已量 '+s.meas+' / '+s.present*6+' 部位</span></div>':"";
+}
+function cls(v,kind){if(v==null)return"";if(kind==="cal")return v<=2?"ok":v<=4?"warn":"deep";return v<=3?"ok":v<=5?"warn":"deep"}
+function cellHTML(t,surf,p,first,midline,curKey){
+  const k=t+surf+p;const s=cur.ex[ek].sites[k];
+  let c="c"+(first?(midline?" mid":" t0"):""),inner="";
+  if(T(cur,t).missing){return'<div class="'+c+' miss"></div>'}
+  if(mode==="pd"||mode==="tooth"){const v=s&&s.pd;if(v!=null){inner=v;if(mode==="pd")c+=" "+cls(v)}}
+  else if(mode==="gm"){const v=s&&s.gm;if(v!=null)inner=v}
+  else if(mode==="cal"){const v=cal(s);if(v!=null){inner=v;c+=" "+cls(v,"cal")}}
+  else if(mode==="bop"){inner=s&&s.bop?'<span class="dot"></span>':(s&&s.bopSet?'<span class="dot no"></span>':"")}
+  else if(mode==="pl"){inner=s&&s.pl?'<span class="dot pl"></span>':(s&&s.plSet?'<span class="dot no"></span>':"")}
+  if(k===curKey&&mode!=="cal"&&mode!=="tooth")c+=" cur";
+  return'<button class="'+c+'" data-k="'+k+'" aria-label="'+t+' '+{d:"遠心",c:"中央",m:"近心"}[p]+'">'+inner+'</button>';
+}
+function rowHTML(teeth,surf,label,curKey){let h='<div class="lab">'+label+'</div>';teeth.forEach((t,i)=>siteOrder(t).forEach((p,j)=>{h+=cellHTML(t,surf,p,j===0,i===8,curKey)}));return h}
+function numRow(teeth){
+  let h='<div class="lab">牙位</div>';
+  teeth.forEach((t,i)=>{const tt=T(cur,t),et=ET(cur,ek,t);const tags=[];if(tt.implant)tags.push("植");if(et.mob)tags.push("M"+et.mob);
+    const fm=FURC[t]?Math.max(0,...FURC[t].map(x=>et.furc[x]||0)):0;if(fm)tags.push("F"+ROMAN[fm]);
+    h+='<button class="tn'+(i===8?" mid":"")+(tt.missing?" miss":"")+(mode==="tooth"&&t===selTooth?" sel":"")+'" data-t="'+t+'"><b>'+t+'</b><i>'+tags.join(" ")+'</i></button>'});
+  return h;
+}
+function renderChart(){
+  const box=$("#chart");const sl=box.scrollLeft;
+  const seq=seqOf(cur);if(cursor>=seq.length)cursor=Math.max(0,seq.length-1);
+  const cc=seq[cursor];const curKey=cc?cc.t+cc.surf+cc.p:"";
+  box.innerHTML='<div class="arch">'+rowHTML(UR,"f","頰側<br>Buccal",curKey)+numRow(UR)+rowHTML(UR,"l","腭側<br>Palatal",curKey)+'</div>'+
+    '<div class="arch">'+rowHTML(LR,"l","舌側<br>Lingual",curKey)+numRow(LR)+rowHTML(LR,"f","頰側<br>Buccal",curKey)+'</div>';
+  box.scrollLeft=sl;
+  const el=box.querySelector(".c.cur");if(el){const br=box.getBoundingClientRect(),er=el.getBoundingClientRect();
+    if(er.left<br.left+60||er.right>br.right-10)box.scrollLeft+=(er.left-br.left)-br.width/2}
+  renderStats();
+}
+$("#chart").addEventListener("click",e=>{
+  const tn=e.target.closest("[data-t]");if(tn){selTooth=+tn.dataset.t;mode="tooth";renderEditor();return}
+  const c=e.target.closest("[data-k]");if(!c)return;
+  if(mode==="tooth"){selTooth=parseInt(c.dataset.k,10);renderEditor();return}
+  if(mode==="cal")mode="pd";
+  const i=seqOf(cur).findIndex(x=>x.t+x.surf+x.p===c.dataset.k);if(i>=0){cursor=i;renderEditor()}
+});
+function touch(){cur.updatedAt=Date.now();persist()}
+function renderPad(){
+  const pad=$("#pad");
+  if(mode==="cal"){pad.innerHTML='<p class="hint" style="margin:0">CAL 由 PD 與 GM 自動計算。要修改數值，請切換到「探測深度」或「牙齦位置」。</p>';return}
+  if(mode==="tooth"){renderToothPanel();return}
+  const seq=seqOf(cur);const cc=seq[cursor];
+  if(!cc){pad.innerHTML='<p class="hint">所有牙齒都標為缺牙，沒有可輸入的部位。</p>';return}
+  const surfName=cc.surf==="f"?"頰側":(cc.t<30?"腭側":"舌側");const pn={d:"遠心",c:"中央",m:"近心"}[cc.p];
+  const s=cur.ex[ek].sites[cc.t+cc.surf+cc.p];
+  let val="未填";if(mode==="pd"&&s&&s.pd!=null)val=s.pd+" mm";if(mode==="gm"&&s&&s.gm!=null)val=s.gm+" mm";
+  if(mode==="bop"&&s&&s.bopSet)val=s.bop?"出血":"無";if(mode==="pl"&&s&&s.plSet)val=s.pl?"有":"無";
+  let keys="";
+  if(mode==="pd"){for(let i=1;i<=15;i++)keys+='<button class="key" data-v="'+i+'">'+i+'</button>'}
+  else if(mode==="gm"){for(let i=-4;i<=10;i++)keys+='<button class="key" data-v="'+i+'">'+(i>0?"+"+i:i)+'</button>'}
+  else if(mode==="bop")keys='<button class="key wide yes" data-v="1">● 出血</button><button class="key wide" data-v="0">無</button>';
+  else if(mode==="pl")keys='<button class="key wide plyes" data-v="1">● 有菌斑</button><button class="key wide" data-v="0">無</button>';
+  pad.innerHTML='<div class="padhead"><span><span class="exbadge">'+(ek==="pre"?"術前":"術後")+'</span> <b>'+cc.t+'</b> '+surfName+' '+pn+'・目前：'+val+'</span><span class="hint" style="margin:0">'+(cursor+1)+' / '+seq.length+'</span></div>'+
+    '<div class="keys">'+keys+'</div><div class="navrow"><button class="btn" data-nav="-1">‹ 上一格</button><button class="btn" data-nav="clr">清除</button><button class="btn" data-nav="1">下一格 ›</button></div>';
+}
+$("#pad").addEventListener("click",e=>{
+  if(mode==="tooth"){toothClick(e);return}
+  const n=e.target.closest("[data-nav]"),k=e.target.closest("[data-v]");const seq=seqOf(cur);
+  if(n){const v=n.dataset.nav;
+    if(v==="clr"){const cc=seq[cursor];if(cc){const s=SI(cur,ek,cc.t+cc.surf+cc.p);if(mode==="pd")s.pd=null;if(mode==="gm")s.gm=null;if(mode==="bop"){s.bop=false;s.bopSet=false}if(mode==="pl"){s.pl=false;s.plSet=false}touch()}}
+    else cursor=Math.min(seq.length-1,Math.max(0,cursor+(+v)));
+    renderChart();renderPad();return}
+  if(k){const cc=seq[cursor];if(!cc)return;const s=SI(cur,ek,cc.t+cc.surf+cc.p);const v=+k.dataset.v;
+    if(mode==="pd")s.pd=v;else if(mode==="gm")s.gm=v;else if(mode==="bop"){s.bop=!!v;s.bopSet=true}else if(mode==="pl"){s.pl=!!v;s.plSet=true}
+    touch();if(cursor<seq.length-1)cursor++;else toast("已到最後一格");renderChart();renderPad()}
+});
+function renderToothPanel(){
+  const t=selTooth,tt=T(cur,t),et=ET(cur,ek,t);
+  const ch=(attr,val,on,label)=>'<button class="chip" '+attr+'="'+val+'" aria-pressed="'+on+'">'+label+'</button>';
+  let h='<div class="padhead"><span><span class="exbadge">'+(ek==="pre"?"術前":"術後")+'</span> <b>'+t+'</b> 號牙</span><span class="hint" style="margin:0">點上方牙位切換</span></div><div class="toothpanel">';
+  h+='<div class="fieldrow"><span>狀態</span><div class="chips">'+ch("data-st","none",!tt.missing&&!tt.implant,"自然牙")+ch("data-st","missing",tt.missing,"缺牙")+ch("data-st","implant",tt.implant,"植體")+'</div></div>';
+  if(!tt.missing){
+    h+='<div class="fieldrow"><span>動搖度</span><div class="chips">'+[0,1,2,3].map(v=>ch("data-mob",v,et.mob===v,v)).join("")+'</div></div>';
+    h+='<div class="fieldrow"><span>角化牙齦</span><div class="chips">'+[0,1,2,3,4,5,6].map(v=>ch("data-km",v,et.km===v,v)).join("")+'</div></div>';
+    if(FURC[t])FURC[t].forEach(x=>{h+='<div class="fieldrow"><span>根分岔・'+FURC_LAB[x]+'</span><div class="chips">'+[0,1,2,3].map(v=>ch("data-fu",x+v,(et.furc[x]||0)===v,ROMAN[v])).join("")+'</div></div>'});
+  }
+  h+='</div><div class="navrow"><button class="btn" data-tn="-1">‹ 前一顆</button><button class="btn" data-tn="1">下一顆 ›</button></div>';
+  $("#pad").innerHTML=h;
+}
+function toothClick(e){
+  const tt=T(cur,selTooth),et=ET(cur,ek,selTooth);let b;
+  if(b=e.target.closest("[data-st]")){const v=b.dataset.st;tt.missing=v==="missing";tt.implant=v==="implant"}
+  else if(b=e.target.closest("[data-mob]")){const v=+b.dataset.mob;et.mob=et.mob===v?null:v}
+  else if(b=e.target.closest("[data-km]")){const v=+b.dataset.km;et.km=et.km===v?null:v}
+  else if(b=e.target.closest("[data-fu]")){const s=b.dataset.fu;et.furc[s[0]]=+s[1]}
+  else if(b=e.target.closest("[data-tn]")){const i=ALL.indexOf(selTooth);selTooth=ALL[(i+(+b.dataset.tn)+32)%32];renderChart();renderPad();return}
+  else return;
+  touch();renderChart();renderPad();
+}
+
+/* ================= print rendering ================= */
+const PC={ok:["#DDF1E5","#1D6A44"],warn:["#FCEBC6","#8A5A0A"],deep:["#F7CBC6","#A3271E"]};
+function pdStyle(v){if(v==null)return"";const c=PC[cls(v)];return"background:"+c[0]+";color:"+c[1]+";font-weight:"+(v>=6?700:500)}
+async function renderPages(htmlPages,orient){
+  await loadLib(LIB.h2c);await loadLib(LIB.pdf);
+  if(document.fonts&&document.fonts.ready)await document.fonts.ready;
+  const root=$("#printRoot");const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF({orientation:orient,unit:"mm",format:"a4"});
+  const W=orient==="l"?297:210,H=orient==="l"?210:297;
+  for(let i=0;i<htmlPages.length;i++){
+    root.innerHTML='<div class="pg pg-'+orient+'">'+htmlPages[i]+'</div>';
+    const canvas=await window.html2canvas(root.firstChild,{scale:2.5,backgroundColor:"#ffffff",logging:false});
+    if(i>0)pdf.addPage("a4",orient);
+    pdf.addImage(canvas.toDataURL("image/jpeg",0.92),"JPEG",0,0,W,H);
+  }
+  root.innerHTML="";
+  return pdf.output("blob");
+}
+
+/* ---------- simple (consult) ---------- */
+function simplePage(r){
+  const hasPost=hasData(r.ex.post);
+  const td=(t,surf,p,k,first,mid)=>{const miss=T(r,t).missing;const s=r.ex[k].sites[t+surf+p];const v=s?s.pd:null;
+    return'<td class="s'+(first?(mid?" mid":" t0"):"")+(miss?" mx":"")+'" style="'+(miss?"":pdStyle(v))+'">'+(miss||v==null?"":v)+'</td>'};
+  const pdRows=(teeth,surf,label)=>["pre","post"].map((k,ri)=>'<tr class="'+k+'">'+(ri===0?'<th rowspan="2" class="l1">'+label+'</th>':'')+'<th class="l2">'+(k==="pre"?"術前":"術後")+'</th>'+
+    teeth.map((t,i)=>siteOrder(t).map((p,j)=>td(t,surf,p,k,j===0,i===8)).join("")).join("")+'</tr>').join("");
+  const tRow=teeth=>'<tr class="trow"><th colspan="2" class="lt">牙位</th>'+teeth.map((t,i)=>{const tt=T(r,t);
+    return'<td colspan="3" class="ptn'+(i===8?" mid":"")+(tt.missing?" tmiss":"")+'">'+t+(tt.missing?'<small>缺</small>':tt.implant?'<small>植</small>':'')+'</td>'}).join("")+'</tr>';
+  const col='<colgroup><col style="width:78px"><col style="width:40px">'+'<col>'.repeat(48)+'</colgroup>';
+  const sum=k=>{const s=stats(r,k);const has=hasData(r.ex[k]);const d=k==="pre"?r.preDate:r.postDate;
+    return'<div class="sbox"><h4>'+(k==="pre"?"初診（術前）":"再評估（術後）")+'<span>'+esc(d||"")+'</span></h4>'+(has?
+    '<div class="sgrid"><div><b style="color:'+PC.ok[1]+'">'+s.ok+'</b>1–3 mm</div><div><b style="color:'+PC.warn[1]+'">'+s.n4+'</b>4–5 mm</div><div><b style="color:'+PC.deep[1]+'">'+s.n6+'</b>≥6 mm</div><div><b>'+s.bopP.toFixed(0)+'%</b>牙齦出血</div></div><p>已檢查 '+s.meas+' 個部位・現存牙齒 '+s.present+' 顆</p>'
+    :'<p class="na">尚未進行</p>')+'</div>'};
+  const im=improve(r);
+  return '<div class="sh"><div><h1>牙周囊袋深度檢查</h1><p>立威口腔顎面外科</p></div>'+
+    '<table class="info"><tr><th>姓名</th><td>'+esc(r.name)+'</td><th>醫師</th><td>'+esc(r.doctor.zh)+'</td><th>編號</th><td>'+esc(r.code)+'</td></tr></table></div>'+
+    '<table class="g">'+col+pdRows(UR,"f","頰側")+tRow(UR)+pdRows(UR,"l","腭側")+'</table>'+
+    '<table class="g" style="margin-top:14px">'+col+pdRows(LR,"l","舌側")+tRow(LR)+pdRows(LR,"f","頰側")+'</table>'+
+    '<div class="sfoot"><div class="leg"><span><i style="background:'+PC.ok[0]+';border-color:'+PC.ok[1]+'"></i>1–3 mm 健康</span><span><i style="background:'+PC.warn[0]+';border-color:'+PC.warn[1]+'"></i>4–5 mm 需要注意</span><span><i style="background:'+PC.deep[0]+';border-color:'+PC.deep[1]+'"></i>6 mm 以上 需要治療</span><span><i style="background:#E6E9EA;border-color:#9AA5A9"></i>缺牙</span></div>'+
+    '<div class="sboxes">'+sum("pre")+sum("post")+(hasPost&&im.rate!=null?'<div class="sbox imp"><h4>治療成效</h4><div class="big">'+im.rate.toFixed(0)+'%</div><p>原本 ≥5mm 的 '+im.deep+' 顆牙中，'+im.imp+' 顆改善 2mm 以上</p></div>':'')+'</div></div>';
+}
+async function exportSimplePdf(r){
+  if(!hasData(r.ex.pre)&&!hasData(r.ex.post)){toast("還沒有輸入囊袋深度");return}
+  const blob=await renderPages([simplePage(r)],"l");await deliver(r.code+"_簡易版.pdf",blob);
+}
+async function exportSimpleXlsx(r){
+  if(!hasData(r.ex.pre)&&!hasData(r.ex.post)){toast("還沒有輸入囊袋深度");return}
+  await loadLib(LIB.xls);
+  const wb=new window.ExcelJS.Workbook();
+  const ws=wb.addWorksheet("囊袋深度",{pageSetup:{paperSize:9,orientation:"landscape",fitToPage:true,fitToWidth:1,fitToHeight:1,horizontalCentered:true,margins:{left:.3,right:.3,top:.4,bottom:.4,header:.2,footer:.2}},views:[{showGridLines:false}]});
+  ws.getColumn(1).width=8;ws.getColumn(2).width=5;for(let c=3;c<=50;c++)ws.getColumn(c).width=3.3;
+  const thin={style:"thin",color:{argb:"FF9AA5A9"}},med={style:"medium",color:{argb:"FF14232A"}};
+  const fill=hex=>({type:"pattern",pattern:"solid",fgColor:{argb:"FF"+hex.replace("#","")}});
+  const font=(o)=>Object.assign({name:"Microsoft JhengHei",size:10},o||{});
+  ws.mergeCells(1,1,1,50);const t=ws.getCell(1,1);t.value="牙周囊袋深度檢查　立威口腔顎面外科";t.font=font({size:15,bold:true});
+  ws.mergeCells(2,1,2,50);ws.getCell(2,1).value="姓名："+r.name+"　　醫師："+r.doctor.zh+"　　編號："+r.code+"　　初診："+(r.preDate||"")+"　　再評估："+(r.postDate||"尚未進行");ws.getCell(2,1).font=font({size:11});
+  let row=4;
+  const box=(c,left)=>{c.border={top:thin,bottom:thin,left:left||thin,right:thin};c.alignment={horizontal:"center",vertical:"middle",wrapText:true}};
+  const pdRows=(teeth,surf,label)=>{
+    ws.mergeCells(row,1,row+1,1);const l=ws.getCell(row,1);l.value=label;l.font=font({bold:true});l.fill=fill("#E0EFEF");box(l);
+    ["pre","post"].forEach((k,ri)=>{const rr=row+ri;const c2=ws.getCell(rr,2);c2.value=k==="pre"?"術前":"術後";c2.font=font({size:9});c2.fill=fill("#E0EFEF");box(c2);
+      let col=3;teeth.forEach((tn,i)=>siteOrder(tn).forEach((p,j)=>{const c=ws.getCell(rr,col);const miss=T(r,tn).missing;const s=r.ex[k].sites[tn+surf+p];const v=s?s.pd:null;
+        if(miss)c.fill=fill("#E6E9EA");else if(v!=null){c.value=v;const pc=PC[cls(v)];c.fill=fill(pc[0]);c.font=font({color:{argb:"FF"+pc[1].slice(1)},bold:v>=6})}
+        box(c,j===0?(i===8?med:{style:"thin",color:{argb:"FF5E6E75"}}):null);col++}));
+      ws.getRow(rr).height=20;});
+    row+=2;};
+  const tRow=teeth=>{ws.mergeCells(row,1,row,2);const l=ws.getCell(row,1);l.value="牙位";l.font=font({bold:true});l.fill=fill("#14232A");l.font=font({bold:true,color:{argb:"FFFFFFFF"}});box(l);
+    let col=3;teeth.forEach((tn,i)=>{ws.mergeCells(row,col,row,col+2);const c=ws.getCell(row,col);const tt=T(r,tn);c.value=tn+(tt.missing?" 缺":tt.implant?" 植":"");c.font=font({bold:true,size:11,strike:tt.missing});box(c,i===8?med:null);col+=3});
+    ws.getRow(row).height=22;row++;};
+  pdRows(UR,"f","頰側");tRow(UR);pdRows(UR,"l","腭側");row++;pdRows(LR,"l","舌側");tRow(LR);pdRows(LR,"f","頰側");row++;
+  ["pre","post"].forEach(k=>{if(!hasData(r.ex[k]))return;const s=stats(r,k);ws.mergeCells(row,1,row,50);
+    ws.getCell(row,1).value=(k==="pre"?"初診（術前）":"再評估（術後）")+"　1–3mm："+s.ok+"　4–5mm："+s.n4+"　≥6mm："+s.n6+"　牙齦出血："+s.bopP.toFixed(0)+"%　已檢查 "+s.meas+" 部位";ws.getCell(row,1).font=font({size:11});row++});
+  const im=improve(r);if(im.hasPost&&im.rate!=null){ws.mergeCells(row,1,row,50);ws.getCell(row,1).value="治療成效：原本 ≥5mm 的 "+im.deep+" 顆牙中，"+im.imp+" 顆改善 2mm 以上（"+im.rate.toFixed(0)+"%）";ws.getCell(row,1).font=font({size:11,bold:true});row++}
+  ws.mergeCells(row,1,row,50);ws.getCell(row,1).value="顏色說明：綠色 1–3mm 健康　黃色 4–5mm 需要注意　紅色 6mm 以上 需要治療　灰色 缺牙";ws.getCell(row,1).font=font({size:9,color:{argb:"FF5E6E75"}});
+  const buf=await wb.xlsx.writeBuffer();
+  await deliver(r.code+"_簡易版.xlsx",new Blob([buf],{type:MIME.xlsx}));
+}
+
+/* ---------- NHI audit (版本A + 牙菌斑) ---------- */
+function auditCheck(){
+  const r=cur;if(!hasData(r.ex.pre)){toast("請先輸入初診（術前）資料");return}
+  const miss=[];if(!r.name)miss.push("姓名");if(!r.idNo)miss.push("身分證字號");if(!r.gender)miss.push("性別");if(!r.age)miss.push("年齡");
+  const im=improve(r);const warns=[];
+  if(miss.length)warns.push("基本資料缺少："+miss.join("、")+"（可按「基本資料」補上）");
+  if(im.total<16)warns.push("治療前總齒數 "+im.total+" 顆，未達 16 顆");
+  if(im.deep<6)warns.push("囊袋≧5mm 齒數 "+im.deep+" 顆，未達 6 顆");
+  if(im.hasPost&&im.rate!=null&&im.rate<70)warns.push("改善率 "+im.rate.toFixed(0)+"%，未達 70%");
+  const go=()=>{closeSheet();const b=document.querySelector('[data-act="auditPdf"]');run(b,()=>exportAudit(r))};
+  if(!warns.length){go();return}
+  openSheet('<h3>匯出前請確認</h3><div class="warnbox">'+warns.map(w=>"・"+esc(w)).join("<br>")+'</div><p class="hint" style="margin-top:10px">確認無誤仍可匯出。</p><div class="actions"><button class="btn" id="aC">返回修改</button><button class="btn primary" id="aG">仍要匯出</button></div>');
+  $("#aC").onclick=closeSheet;$("#aG").onclick=go;
+}
+function auditPage1(r){
+  const pre=r.ex.pre,post=r.ex.post,hasPost=hasData(post);
+  const v=(k,key,f)=>{const s=r.ex[k].sites[key];return s&&s[f]!=null?s[f]:""};
+  const L1=(txt,rs,cs,cl)=>'<th'+(rs>1?' rowspan="'+rs+'"':'')+(cs>1?' colspan="'+cs+'"':'')+' class="'+(cl||"y")+'">'+txt+'</th>';
+  const phase=k=>'<th class="ph">'+(k==="pre"?"術前":"術後")+'</th>';
+  const mobRow=(teeth,k,first,label)=>'<tr class="'+k+'">'+(first?L1(label,2,2):"")+phase(k)+teeth.map((t,i)=>{const tt=T(r,t);let x="";
+    if(tt.missing)x=k==="pre"?"X":"";else{const m=r.ex[k].tooth[t];if(m&&m.mob!=null&&(k==="pre"||hasPost))x=m.mob}
+    return'<td colspan="3" class="'+(i===8?"mid":"")+'">'+x+'</td>'}).join("")+'</tr>';
+  const furcCells=(teeth,k,lower)=>teeth.map((t,i)=>{
+    if(!FURC[t])return'<td colspan="3" class="nf'+(i===8?" mid":"")+'"></td>';
+    const ord=siteOrder(t);return ord.map((p,j)=>{let key=null;
+      if(!lower){key=p==="c"?"b":p;if(FURC[t].indexOf(key)<0)key=null}
+      else{const q=Math.floor(t/10);const pos=q===4?{c:"l",m:"b"}:{m:"b",c:"l"};key=pos[p]||null}
+      let txt="";if(key){if(k==="lab")txt=lower?key.toUpperCase():(key==="b"?"B":key.toUpperCase());
+        else if(!T(r,t).missing&&(k==="pre"||hasPost)){const m=r.ex[k].tooth[t];const g=m&&m.furc?m.furc[key]:null;txt=g?g:(m&&m.furc&&m.furc[key]===0?"0":"")}}
+      return'<td class="'+(key?"fs":"nf")+(j===0&&i===8?" mid":"")+'">'+txt+'</td>'}).join("")}).join("");
+  const pdRow=(teeth,surf,k,first,lab)=>'<tr class="'+k+'">'+(first?L1(lab,2,1)+L1("Probing<br>Depth",2,1):"")+phase(k)+
+    teeth.map((t,i)=>siteOrder(t).map((p,j)=>{const miss=T(r,t).missing;const x=miss||(k==="post"&&!hasPost)?"":v(k,t+surf+p,"pd");
+      return'<td class="'+(miss?"mx":"")+(j===0&&i===8?" mid":"")+'">'+x+'</td>'}).join("")).join("")+'</tr>';
+  const toothRow=teeth=>'<tr>'+L1("Tooth",1,3,"tl")+teeth.map((t,i)=>'<td colspan="3" class="tp'+(i===8?" mid":"")+'">'+t+'</td>').join("")+'</tr>';
+  const noteRow=teeth=>'<tr>'+L1("Note",1,3,"nl")+teeth.map((t,i)=>{const tt=T(r,t);return'<td colspan="3" class="np'+(i===8?" mid":"")+'">'+(tt.missing?"缺牙":tt.implant?"植體":"")+'</td>'}).join("")+'</tr>';
+  const col='<colgroup><col style="width:44px"><col style="width:44px"><col style="width:30px">'+'<col>'.repeat(48)+'</colgroup>';
+  const im=improve(r);
+  const pdoc=r.postDoctor?r.postDoctor.zh:(hasPost?r.doctor.zh:"");
+  return '<div class="ah1">牙周病檢查紀錄表（版本A）<br><span>Periodontal Chart（術前、術後合併填寫）</span></div>'+
+  '<table class="ainfo"><tr><th>患者姓名<br>Name</th><td>'+esc(r.name)+'</td><th>身分證字號<br>ID</th><td>'+esc(r.idNo)+'</td><th>術前日期</th><td>'+esc(r.preDate)+'</td><th>術前<br>醫師姓名</th><td>'+esc(r.doctor.zh)+'</td></tr>'+
+  '<tr><th>性別<br>Sex</th><td>'+esc(r.gender)+'</td><th>年齡<br>Age</th><td>'+esc(r.age)+'</td><th>術後日期</th><td>'+esc(hasPost?r.postDate:"")+'</td><th>術後<br>醫師姓名</th><td>'+esc(pdoc)+'</td></tr></table>'+
+  '<table class="ag">'+col+
+   mobRow(UR,"pre",true,"Mobility")+mobRow(UR,"post",false)+
+   '<tr>'+L1("Furcation",3,2)+'<th class="ph"></th>'+furcCells(UR,"lab",false)+'</tr>'+
+   '<tr class="pre">'+'<th class="ph">術前</th>'+furcCells(UR,"pre",false)+'</tr><tr class="post"><th class="ph">術後</th>'+furcCells(UR,"post",false)+'</tr>'+
+   pdRow(UR,"f","pre",true,"Buccal")+pdRow(UR,"f","post",false)+toothRow(UR)+pdRow(UR,"l","pre",true,"Palatal")+pdRow(UR,"l","post",false)+noteRow(UR)+
+   '<tr class="gap"><td colspan="51"></td></tr>'+
+   pdRow(LR,"l","pre",true,"Linqual")+pdRow(LR,"l","post",false)+toothRow(LR)+pdRow(LR,"f","pre",true,"Buccal")+pdRow(LR,"f","post",false)+
+   '<tr class="pre">'+L1("Furcation",3,2)+'<th class="ph">術前</th>'+furcCells(LR,"pre",true)+'</tr><tr class="post"><th class="ph">術後</th>'+furcCells(LR,"post",true)+'</tr>'+
+   '<tr><th class="ph"></th>'+furcCells(LR,"lab",true)+'</tr>'+
+   mobRow(LR,"pre",true,"Mobility")+mobRow(LR,"post",false)+noteRow(LR)+
+  '</table>'+
+  '<div class="anote"><b>Note：</b>治療前總齒數 <u>'+im.total+'</u> 顆；治療前囊袋≧5mm齒數 <u>'+im.deep+'</u> 顆<br>'+
+  '<span style="padding-left:3.2em">治療後至少一個部位改善2mm齒數 <u>'+(hasPost?im.imp:"　")+'</u> 顆；改善率 <u>'+(hasPost&&im.rate!=null?im.rate.toFixed(1):"　")+'</u> %</span></div>';
+}
+function auditPage2(r){
+  const block=(k,show)=>{const has=show&&hasData(r.ex[k]);const s=has?stats(r,k):null;
+    const doc=!has?"":k==="pre"?r.doctor.zh:(r.postDoctor?r.postDoctor.zh:r.doctor.zh);const d=!has?"":k==="pre"?r.preDate:r.postDate;
+    const row=(teeth,surf,lab)=>'<tr><th class="y">'+lab+'</th>'+teeth.map((t,i)=>siteOrder(t).map((p,j)=>{const miss=T(r,t).missing;const x=has&&r.ex[k].sites[t+surf+p];
+      return'<td class="'+(miss&&has?"mx":(x&&x.pl?"plq":""))+(j===0&&i===8?" mid":"")+'"></td>'}).join("")).join("")+'</tr>';
+    const trow=teeth=>'<tr><th class="tl">Tooth</th>'+teeth.map((t,i)=>'<td colspan="3" class="tp'+(i===8?" mid":"")+'">'+t+'</td>').join("")+'</tr>';
+    return'<table class="pinfo"><tr><th>醫師姓名</th><td>'+esc(doc)+'</td><th>執行日期</th><td>'+esc(d)+'</td><th class="w">Plaque Score（牙菌斑指數）=</th><td>'+(has?s.plP.toFixed(1):"")+'</td><th>%</th></tr></table>'+
+      '<table class="ag pg2"><colgroup><col style="width:58px">'+'<col>'.repeat(48)+'</colgroup>'+row(UR,"f","Buccal")+trow(UR)+row(UR,"l","Palatal")+'<tr class="gap"><td colspan="49"></td></tr>'+row(LR,"l","Linqual")+trow(LR)+row(LR,"f","Buccal")+'</table>'};
+  return'<div class="ah1">牙菌斑控制記錄表<br><span>Plaque Control Record（至少術前、術後各執行一次）</span></div>'+
+  '<table class="ainfo"><tr><th>患者姓名<br>Name</th><td>'+esc(r.name)+'</td><th>身分證字號<br>ID</th><td>'+esc(r.idNo)+'</td><th>性別<br>Sex</th><td>'+esc(r.gender)+'</td><th>年齡<br>Age</th><td>'+esc(r.age)+'</td></tr></table>'+
+  '<div class="pblk">'+block("pre",true)+'</div><div class="pblk">'+block("post",true)+'</div><div class="pblk">'+block("x3",false)+'</div>'+
+  '<p class="plegend"><span style="color:#E8776E">■</span> 有牙菌斑　<span style="color:#AAAAAA">■</span> 缺牙</p>';
+}
+async function exportAudit(r){
+  const blob=await renderPages([auditPage1(r),auditPage2(r)],"p");
+  await deliver(r.code+"_健保抽審.pdf",blob);
+}
+
+/* ================= backup ================= */
+function pack(recs){return JSON.stringify({app:"leaderway-perio",version:2,exportedAt:new Date().toISOString(),records:recs})}
+function stamp(){const d=new Date();return ymd(today())+"_"+String(d.getHours()).padStart(2,"0")+String(d.getMinutes()).padStart(2,"0")}
+async function doExport(onlyNew){
+  const recs=onlyNew?S.records.filter(r=>(r.updatedAt||0)>(S.lastBackupAt||0)):S.records;
+  if(!recs.length){toast(onlyNew?"上次備份後沒有新增或修改的資料":"目前沒有資料可備份");return}
+  const ok=await deliver("立威牙周備份_"+stamp()+(onlyNew?"_新增":"")+".json",new Blob([pack(recs)],{type:MIME.json}));
+  if(ok){S.lastBackupAt=Date.now();persist();renderSettings()}
+}
+function mergeImport(text){
+  let data;try{data=JSON.parse(text)}catch(e){toast("檔案格式錯誤，無法讀取");return}
+  if(!data||data.app!=="leaderway-perio"||!Array.isArray(data.records)){toast("這不是立威牙周備份檔");return}
+  let recs=data.records;if(data.version===1)recs=migrateV1({records:recs});
+  let added=0,updated=0,skipped=0,renum=0;
+  recs.forEach(r=>{
+    if(!r||!r.id||!r.code||!r.doctor||!r.ex)return;r.teeth=r.teeth||{};r.ex.pre=r.ex.pre||blankEx();r.ex.post=r.ex.post||blankEx();
+    const i=S.records.findIndex(x=>x.id===r.id);
+    if(i>=0){if((r.updatedAt||0)>(S.records[i].updatedAt||0)){r.code=S.records[i].code;S.records[i]=r;updated++}else skipped++}
+    else{if(S.records.some(x=>x.code===r.code)){r.code=nextCode(r.doctor.en,r.preDate,r.id);renum++}S.records.push(r);added++}
+  });
+  persist();renderSettings();
+  openSheet('<h3>匯入完成</h3><p>新增 <b>'+added+'</b> 位、更新 <b>'+updated+'</b> 位、略過 <b>'+skipped+'</b> 位（已是最新）'+(renum?'。<br>另有 '+renum+' 位因編號與本機不同病人重複，已自動改為下一個序號。':'。')+'</p><div class="actions"><button class="btn primary" id="okImp">好</button></div>');
+  $("#okImp").onclick=closeSheet;
+}
+function renderSettings(){
+  const changed=S.records.filter(r=>(r.updatedAt||0)>(S.lastBackupAt||0)).length;
+  const size=(new Blob([JSON.stringify(S)]).size/1024).toFixed(0);
+  const last=S.lastBackupAt?new Date(S.lastBackupAt).toLocaleString("zh-TW"):"尚未備份";
+  $("#setBody").innerHTML=
+  '<div class="card"><h2>匯出備份</h2><p>上次備份：'+esc(last)+'。之後新增或修改了 '+changed+' 位病人。建議每週備份一次，存到診所電腦。</p>'+
+   '<div class="actions"><button class="btn primary" id="expNew"'+(changed?"":" disabled")+'>匯出新增／修改的 '+changed+' 位</button><button class="btn" id="expAll">匯出全部 '+S.records.length+' 位</button></div></div>'+
+  '<div class="card"><h2>匯入備份</h2><p>依每位病人的唯一編號合併：同一位只保留最新修改的版本，不會重複。</p>'+
+   '<div class="actions"><label class="btn primary" style="display:inline-flex;align-items:center">選擇備份檔<input type="file" id="impFile" accept=".json,application/json" hidden></label></div></div>'+
+  '<div class="card"><h2>醫師名單</h2><p>英文姓用於檔名開頭，例如 Huang2026100601。</p><div class="doclist">'+
+   S.doctors.map((d,i)=>'<div><span style="flex:1">'+esc(d.zh)+'</span><code>'+esc(d.en)+'</code><button class="btn ghost" data-deldoc="'+i+'">移除</button></div>').join("")+
+   '</div><div class="two"><input id="dz" placeholder="中文姓名" class="search" style="margin:0"><input id="de" placeholder="英文姓，如 Lin" class="search" style="margin:0"></div><div class="actions" style="margin-top:10px"><button class="btn" id="addDoc">新增醫師</button></div></div>'+
+  '<div class="card"><h2>這台裝置的資料</h2><p>共 '+S.records.length+' 位病人，約 '+size+' KB。資料只存在這台裝置的瀏覽器中；清除瀏覽器資料會一併刪除，請定期備份。</p></div>';
+  $("#expNew").onclick=()=>doExport(true);$("#expAll").onclick=()=>doExport(false);
+  $("#impFile").onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>mergeImport(rd.result);rd.readAsText(f);e.target.value=""};
+  $("#addDoc").onclick=()=>{const zh=$("#dz").value.trim(),en=$("#de").value.trim().replace(/[^A-Za-z]/g,"");
+    if(!zh||!en){toast("請填中文姓名與英文姓（僅限英文字母）");return}
+    S.doctors.push({zh,en:en[0].toUpperCase()+en.slice(1).toLowerCase()});persist();renderSettings()};
+  $("#setBody").querySelectorAll("[data-deldoc]").forEach(b=>b.onclick=()=>{const d=S.doctors[+b.dataset.deldoc];if(confirm("從名單移除 "+d.zh+"？已建立的病人檔案不受影響。")){S.doctors.splice(+b.dataset.deldoc,1);persist();renderSettings()}});
+}
+
+/* ================= boot ================= */
+if("serviceWorker" in navigator&&location.protocol==="https:"&&!/claude\.ai|claudeusercontent/.test(location.host)){
+  window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+}
+renderHome();
+window.__lw={get S(){return S},openRec,exportSimplePdf,exportSimpleXlsx,exportAudit,renderPages,simplePage,auditPage1,auditPage2};
+})();
+</script>
+</body>
+</html>
