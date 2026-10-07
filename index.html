@@ -146,6 +146,20 @@ button{cursor:pointer}
 .doclist code{font-family:var(--num);color:var(--accent)}
 textarea.raw{width:100%;min-height:140px;font-family:var(--num);font-size:12px;border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--bg)}
 
+.xtools{display:grid;gap:8px;margin-top:12px}
+.xtools .sep{width:1px;background:var(--line-strong);margin:4px 2px;flex:0 0 1px}
+.xalpha{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted)}
+.xalpha input{flex:1;max-width:320px}
+.xwrap{background:#000;border-radius:12px;overflow:hidden;margin-top:6px}
+#xCanvas{display:block;max-width:100%}
+#printArea{display:none}
+@media print{
+  @page{size:A4 landscape;margin:0}
+  body.printing>*:not(#printArea){display:none!important}
+  body.printing #printArea{display:block}
+  body.printing{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #printArea .pg{page-break-after:avoid}
+}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;z-index:60;max-width:90vw}
 @media (prefers-reduced-motion:no-preference){.toast{animation:pop .18s ease-out}@keyframes pop{from{opacity:0;transform:translate(-50%,8px)}}}
 @media (max-width:560px){.bar h1{font-size:16px}.bar h1 small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar .btn{padding:6px 10px;font-size:14px;min-height:36px}.bar .wrap{gap:6px;padding:0 10px}}
@@ -252,17 +266,34 @@ table.pinfo{width:100%;margin-bottom:4px;table-layout:fixed}
     <div class="exams" id="exams" role="group" aria-label="檢查階段"></div>
     <div class="stats" id="stats"></div>
     <div class="exports">
-      <button class="btn" data-act="simplePdf">簡易版 PDF</button>
+      <button class="btn" data-act="simplePng">簡易版 PNG</button>
+      <button class="btn" data-act="simplePrint">簡易版列印</button>
       <button class="btn" data-act="simpleXlsx">簡易版 Excel</button>
       <span class="sep" aria-hidden="true"></span>
       <button class="btn" data-act="auditPdf">健保抽審 PDF</button>
       <button class="btn" data-act="plaquePdf">牙菌斑控制表 PDF</button>
+      <span class="sep" aria-hidden="true"></span>
+      <button class="btn primary" data-act="xray">X 光對照</button>
     </div>
     <div class="modes" id="modes" role="group" aria-label="輸入項目"></div>
     <p class="hint" id="modeHint"></p>
     <div class="chartbox" id="chart"></div>
     <div class="dist" id="dist"></div>
     <div class="pad" id="pad"></div>
+  </main>
+</section>
+<section id="xray" hidden>
+  <header class="bar"><div class="wrap">
+    <button class="btn ghost" data-go="editor" aria-label="返回檢查">‹ 返回</button>
+    <h1 id="xTitle"></h1>
+  </div></header>
+  <main class="wrap">
+    <div id="xEmpty" class="empty">還沒有這位病人的 X 光。<br>請先從 X 光系統把全口平面 X 光存成圖片（JPG／PNG），再選擇它。<br>
+      <label class="btn primary" style="display:inline-flex;align-items:center;margin-top:14px">選擇 X 光圖片<input type="file" accept="image/*" id="xFile" hidden></label>
+      <p class="hint" style="margin-top:14px">X 光只存在這台裝置，不會上傳，也不會放進備份檔。</p></div>
+    <div id="xTools" class="xtools" hidden></div>
+    <p class="hint" id="xHint"></p>
+    <div id="xWrap" class="xwrap" hidden><canvas id="xCanvas"></canvas></div>
   </main>
 </section>
 <section id="settings" hidden>
@@ -275,6 +306,7 @@ table.pinfo{width:100%;margin-bottom:4px;table-layout:fixed}
 <div id="sheet" class="sheet" hidden><div id="sheetBody"></div></div>
 <div id="toast" class="toast" hidden></div>
 <div id="printRoot" aria-hidden="true"></div>
+<div id="printArea" aria-hidden="true"></div>
 <script>(function(){
 "use strict";
 /* ================= constants ================= */
@@ -356,7 +388,7 @@ let DL=null;
   if(!(window.claude&&window.claude.use))return;
   try{DL=await window.claude.use("downloads")}catch(e){DL=null}
 })();
-const MIME={pdf:"application/pdf",xlsx:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",json:"application/json"};
+const MIME={png:"image/png",pdf:"application/pdf",xlsx:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",json:"application/json"};
 async function deliver(filename,blob){
   const ext=filename.split(".").pop();
   if(DL){try{await DL.save({filename,data:blob});toast("已儲存 "+filename);return true}catch(e){if(e&&e.code==="declined"){toast("已取消");return false}}}
@@ -403,7 +435,7 @@ function seqOf(r){
 
 /* ================= navigation ================= */
 let cur=null,ek="pre",mode="pd",cursor=0,selTooth=16;
-function go(v){["home","editor","settings"].forEach(id=>$("#"+id).hidden=id!==v);window.scrollTo(0,0);
+function go(v){["home","editor","settings","xray"].forEach(id=>$("#"+id).hidden=id!==v);window.scrollTo(0,0);
   if(v==="home")renderHome();if(v==="settings")renderSettings();if(v==="editor")renderEditor();}
 function openRec(r){cur=r;ek=hasData(r.ex.post)?"post":"pre";mode="pd";cursor=0;go("editor")}
 document.addEventListener("click",e=>{
@@ -411,7 +443,9 @@ document.addEventListener("click",e=>{
   const a=e.target.closest("[data-act]");if(!a)return;const act=a.dataset.act;
   if(act==="new")openNew();
   else if(act==="info")openInfo();
-  else if(act==="simplePdf")run(a,()=>exportSimplePdf(cur));
+  else if(act==="simplePng")run(a,()=>exportSimplePng(cur));
+  else if(act==="simplePrint")printSimple(cur);
+  else if(act==="xray")openXray();
   else if(act==="simpleXlsx")run(a,()=>exportSimpleXlsx(cur));
   else if(act==="auditPdf")auditCheck();
   else if(act==="plaquePdf")run(a,()=>exportPlaque(cur));
@@ -517,7 +551,7 @@ function openInfo(){
   if($("#delSpt"))$("#delSpt").onclick=()=>{const ans=prompt("刪除後無法復原。\n請輸入「刪除」確認：");
     if(ans==="刪除"){r.spt=r.spt.filter(v=>v.k!==ek);delete r.ex[ek];ek="post";r.updatedAt=Date.now();persist();closeSheet();renderEditor();toast("已刪除這次支持性治療")}else if(ans!==null)toast("未刪除")};
   $("#delRec").onclick=()=>{const ans=prompt("刪除後無法復原（初診與再評估都會刪除）。\n請輸入編號 "+r.code+" 以確認：");
-    if(ans===r.code){S.records=S.records.filter(x=>x.id!==r.id);persist();closeSheet();cur=null;toast("已刪除");go("home")}else if(ans!==null)toast("編號不符，未刪除")};
+    if(ans===r.code){try{imgDel(r.id)}catch(e){}S.records=S.records.filter(x=>x.id!==r.id);persist();closeSheet();cur=null;toast("已刪除");go("home")}else if(ans!==null)toast("編號不符，未刪除")};
 }
 
 /* ================= support therapy / new course ================= */
@@ -828,6 +862,201 @@ async function exportAudit(r){
   await deliver(r.code+"_健保抽審.pdf",blob);
 }
 
+/* ================= simple PNG / print ================= */
+async function exportSimplePng(r){
+  if(!hasData(r.ex.pre)&&!hasData(r.ex.post)){toast("還沒有輸入囊袋深度");return}
+  await loadLib(LIB.h2c);
+  if(document.fonts&&document.fonts.ready)await document.fonts.ready;
+  const root=$("#printRoot");root.innerHTML='<div class="pg pg-l">'+simplePage(r)+'</div>';
+  const canvas=await window.html2canvas(root.firstChild,{scale:2.5,backgroundColor:"#ffffff",logging:false});
+  root.innerHTML="";
+  const blob=await new Promise(res=>canvas.toBlob(res,"image/png"));
+  await deliver(r.code+"_簡易版.png",blob);
+}
+function printSimple(r){
+  if(!hasData(r.ex.pre)&&!hasData(r.ex.post)){toast("還沒有輸入囊袋深度");return}
+  const area=$("#printArea");area.innerHTML='<div class="pg pg-l">'+simplePage(r)+'</div>';
+  document.body.classList.add("printing");
+  const done=()=>{document.body.classList.remove("printing");area.innerHTML="";window.removeEventListener("afterprint",done)};
+  window.addEventListener("afterprint",done);
+  setTimeout(()=>{window.print();setTimeout(()=>{if(document.body.classList.contains("printing")&&!window.matchMedia("print").matches)done()},1500)},150);
+}
+
+/* ================= X-ray overlay ================= */
+const NEON={ok:"#39FF14",warn:"#FFF01F",deep:"#FF3131"};
+const XW={18:10,17:10,16:10,15:7,14:7,13:8,12:6.5,11:8.5,48:11,47:11,46:11,45:7,44:7,43:7,42:5.5,41:5.5};
+function xw(t){const q=Math.floor(t/10),n=t%10;return XW[(q<=2?10:40)+n]||7}
+const XDEF={ur:[.305,.455],um:[.5,.50],ul:[.695,.455],lr:[.31,.585],lm:[.5,.625],ll:[.69,.585]};
+const XH_LAB={ur:"18 端",um:"上中線",ul:"28 端",lr:"48 端",lm:"下中線",ll:"38 端"};
+function idb(){return new Promise((res,rej)=>{const q=indexedDB.open("lw_perio_img",1);q.onupgradeneeded=()=>q.result.createObjectStore("xray");q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
+async function imgOp(fn,mode){const db=await idb();return new Promise((res,rej)=>{const st=db.transaction("xray",mode||"readonly").objectStore("xray");const q=fn(st);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
+const imgGet=id=>imgOp(s=>s.get(id));
+const imgPut=(id,v)=>imgOp(s=>s.put(v,id),"readwrite");
+const imgDel=id=>imgOp(s=>s.delete(id),"readwrite");
+function lag(p0,p1,p2,x){const [x0,y0]=p0,[x1,y1]=p1,[x2,y2]=p2;
+  const d0=(x0-x1)*(x0-x2),d1=(x1-x0)*(x1-x2),d2=(x2-x0)*(x2-x1);
+  if(!d0||!d1||!d2)return y1;
+  return y0*(x-x1)*(x-x2)/d0+y1*(x-x0)*(x-x2)/d1+y2*(x-x0)*(x-x1)/d2}
+function toothPos(xr){
+  const P=xr.pts,pos={};
+  const arch=(teeth,a,m,b)=>{
+    const half=(list,from,to)=>{const tot=list.reduce((s,t)=>s+xw(t),0);let acc=0;
+      list.forEach(t=>{const c=(acc+xw(t)/2)/tot;acc+=xw(t);const x=from[0]+(to[0]-from[0])*c;pos[t]=[x,lag(a,m,b,x)]})};
+    const L=teeth.slice(0,8),R=teeth.slice(8);
+    // 端點在最後一顆牙的中心：把端點往外延半顆牙
+    const ext=(end,mid,list)=>{const tot=list.reduce((s,t)=>s+xw(t),0);const k=(xw(list[0])/2)/(tot-xw(list[0])/2);return[end[0]-(mid[0]-end[0])*k,end[1]]};
+    half(L,ext(a,m,L),m);half(R.slice().reverse(),ext(b,m,R.slice().reverse()),m);
+  };
+  arch(UR,P.ur,P.um,P.ul);arch(LR,P.lr,P.lm,P.ll);
+  Object.keys(xr.off||{}).forEach(t=>{if(pos[t]){pos[t]=[pos[t][0]+xr.off[t][0],pos[t][1]+xr.off[t][1]]}});
+  return pos;
+}
+let XV={img:null,url:null,k:"pre",six:false,calib:false,alpha:.35,drag:null,scale:1};
+async function openXray(){
+  if(!cur)return;
+  cur.xray=cur.xray||null;
+  XV.k=hasData(cur.ex.post)?"post":"pre";XV.calib=false;XV.drag=null;
+  go("xray");
+  await loadXrayImg();
+}
+async function loadXrayImg(){
+  if(XV.url){URL.revokeObjectURL(XV.url);XV.url=null}
+  XV.img=null;
+  if(cur&&cur.xray){try{const b=await imgGet(cur.id);if(b){XV.url=URL.createObjectURL(b);const im=new Image();
+    await new Promise((res,rej)=>{im.onload=res;im.onerror=rej;im.src=XV.url});XV.img=im}}catch(e){toast("讀取 X 光失敗")}}
+  renderXray();
+}
+function renderXray(){
+  if(!cur){go("home");return}
+  $("#xTitle").innerHTML=esc(cur.name||"（未填姓名）")+'<small>X 光對照・'+esc(cur.code)+'</small>';
+  const has=!!XV.img;
+  $("#xEmpty").hidden=has;$("#xWrap").hidden=!has;$("#xTools").hidden=!has;
+  if(!has)return;
+  $("#xCanvas").style.touchAction=XV.calib?"none":"auto";
+  $("#xTools").innerHTML=
+    '<div class="modes" style="padding:0">'+["pre","post"].map(k=>'<button class="mode" data-xk="'+k+'" aria-pressed="'+(XV.k===k)+'">'+(k==="pre"?"術前":"術後")+'</button>').join("")+
+    '<span class="sep"></span><button class="mode" data-x6="0" aria-pressed="'+(!XV.six)+'">最深值</button><button class="mode" data-x6="1" aria-pressed="'+XV.six+'">6 個位點</button>'+
+    '<span class="sep"></span><button class="mode" data-xcal="1" aria-pressed="'+XV.calib+'">'+(XV.calib?"完成對位":"調整對位")+'</button></div>'+
+    '<label class="xalpha">色塊濃淡<input type="range" min="0" max="80" value="'+Math.round(XV.alpha*100)+'" id="xAlpha"></label>'+
+    '<div class="actions" style="justify-content:flex-start;margin-top:6px"><button class="btn primary" id="xPng">匯出 PNG</button><label class="btn">換一張 X 光<input type="file" accept="image/*" id="xFile2" hidden></label><button class="btn danger" id="xDel">刪除 X 光</button></div>';
+  $("#xHint").textContent=XV.calib?"拖動 6 個大圓點對準：最後一顆牙（左右兩端）和上下中線。個別牙齒沒對準，可以直接拖該顆牙的小圓點。":
+    (hasData(cur.ex[XV.k])?"點「調整對位」可以微調位置。":"這個階段還沒有輸入囊袋深度。");
+  $("#xAlpha").oninput=e=>{XV.alpha=+e.target.value/100;drawXray()};
+  $("#xPng").onclick=e=>run(e.target,exportXrayPng);
+  $("#xFile2").onchange=onXrayFile;
+  $("#xDel").onclick=async()=>{const ans=prompt("刪除後無法復原（只刪除這台裝置裡的 X 光，原始檔仍在 X 光系統）。\n請輸入「刪除」確認：");
+    if(ans!=="刪除"){if(ans!==null)toast("未刪除");return}
+    try{await imgDel(cur.id)}catch(e){}cur.xray=null;cur.updatedAt=Date.now();persist();await loadXrayImg();toast("已刪除 X 光")};
+  drawXray();
+}
+function drawXray(target){
+  const im=XV.img;if(!im)return;
+  const exp=!!target;const cv=target||$("#xCanvas");
+  const W=exp?im.naturalWidth:Math.min($("#xWrap").clientWidth||800,2000);
+  const H=Math.round(W*im.naturalHeight/im.naturalWidth);
+  const dpr=exp?1:(window.devicePixelRatio||1);
+  cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);
+  if(!exp){cv.style.width=W+"px";cv.style.height=H+"px"}
+  const g=cv.getContext("2d");g.setTransform(dpr,0,0,dpr,0,0);
+  g.drawImage(im,0,0,W,H);
+  const xr=cur.xray;const pos=toothPos(xr);const e=cur.ex[XV.k];
+  const fs=W*0.019,sm=W*0.0105;
+  const label=(txt,x,y,size,color,bg)=>{
+    g.font="800 "+size+"px 'IBM Plex Sans','Noto Sans TC',Arial,sans-serif";g.textAlign="center";g.textBaseline="middle";
+    if(bg&&XV.alpha>0){const w=g.measureText(String(txt)).width+size*.55;g.globalAlpha=XV.alpha;g.fillStyle=color;
+      g.beginPath();if(g.roundRect)g.roundRect(x-w/2,y-size*.62,w,size*1.24,size*.3);else g.rect(x-w/2,y-size*.62,w,size*1.24);g.fill();g.globalAlpha=1}
+    g.lineJoin="round";g.lineWidth=Math.max(2,size*.2);g.strokeStyle="rgba(0,0,0,.92)";g.strokeText(txt,x,y);
+    g.shadowColor=color;g.shadowBlur=size*.45;g.fillStyle=color;g.fillText(txt,x,y);g.shadowBlur=0;
+  };
+  ALL.forEach(t=>{
+    const p=pos[t];if(!p)return;const x=p[0]*W,y=p[1]*H;const tt=T(cur,t);
+    if(tt.missing){label("X",x,y,fs*.8,"#E6EEF0",false);return}
+    const keys=sk(t);const vals=keys.map(k=>{const s=e.sites[k];return s&&s.pd!=null?s.pd:null});
+    if(XV.six){
+      const up=t<30;const order=p=>siteOrder(t).map(q=>t+p+q);
+      const rowF=order("f").map(k=>{const s=e.sites[k];return s&&s.pd!=null?s.pd:null}),rowL=order("l").map(k=>{const s=e.sites[k];return s&&s.pd!=null?s.pd:null});
+      const arr=up?UR:LR,ix=arr.indexOf(t),nb=pos[arr[ix+(ix<15?1:-1)]];
+      const span=nb?Math.abs(nb[0]-p[0])*W:sm*3.2;const gap=Math.min(sm*1.05,span/3.1),fz=Math.min(sm,gap*1.2),dy=fz*.68;
+      [[rowF,up?-dy:dy],[rowL,up?dy:-dy]].forEach(([row,oy])=>row.forEach((v,i)=>{if(v==null)return;label(String(v),x+(i-1)*gap,y+oy,fz,NEON[cls(v)],true)}));
+    }else{
+      const m=vals.filter(v=>v!=null);if(!m.length){if(tt.implant)label("植",x,y,fs*.6,"#E6EEF0",false);return}
+      const mx=Math.max(...m);label(String(mx),x,y,fs,NEON[cls(mx)],true);
+    }
+    if(tt.implant)label("植",x,y+(t<30?-1:1)*fs*.95,fs*.5,"#E6EEF0",false);
+  });
+  if(!exp){
+    // 圖例
+    const lg=[["1–3",NEON.ok],["4–5",NEON.warn],["≥6",NEON.deep]];
+    g.font="700 "+(W*.013)+"px sans-serif";g.textAlign="left";g.textBaseline="middle";
+    let lx=W*.015;const ly=H*.04;g.lineWidth=4;g.strokeStyle="rgba(0,0,0,.9)";lg.forEach(([t,c])=>{g.strokeText(t+" mm",lx,ly);g.fillStyle=c;g.fillText(t+" mm",lx,ly);lx+=g.measureText(t+" mm").width+W*.02});
+  }else{
+    const tag=(XV.k==="pre"?"術前 ":"術後 ")+(XV.k==="pre"?cur.preDate:cur.postDate||"");
+    g.font="700 "+(W*.014)+"px 'Noto Sans TC',sans-serif";g.textAlign="right";g.textBaseline="top";
+    g.lineWidth=4;g.strokeStyle="rgba(0,0,0,.9)";g.strokeText(tag,W*.985,H*.02);g.fillStyle="#fff";g.fillText(tag,W*.985,H*.02);
+    const lg=[["1–3 mm",NEON.ok],["4–5 mm",NEON.warn],["≥6 mm",NEON.deep]];g.textAlign="left";
+    let lx=W*.015;lg.forEach(([t,c])=>{g.strokeText(t,lx,H*.02);g.fillStyle=c;g.fillText(t,lx,H*.02);lx+=g.measureText(t).width+W*.02});
+  }
+  if(XV.calib&&!exp){
+    Object.keys(XH_LAB).forEach(k=>{const [px,py]=xr.pts[k];const x=px*W,y=py*H;
+      g.beginPath();g.arc(x,y,W*.016,0,Math.PI*2);g.fillStyle="rgba(77,178,180,.35)";g.fill();g.lineWidth=3;g.strokeStyle="#4DB2B4";g.stroke();
+      g.font="700 "+(W*.011)+"px sans-serif";g.fillStyle="#fff";g.textAlign="center";g.textBaseline="bottom";g.strokeStyle="#000";g.lineWidth=3;
+      g.strokeText(XH_LAB[k],x,y-W*.019);g.fillText(XH_LAB[k],x,y-W*.019)});
+    ALL.forEach(t=>{const p=pos[t];if(!p)return;g.beginPath();g.arc(p[0]*W,p[1]*H,W*.006,0,Math.PI*2);g.fillStyle="#fff";g.fill();g.lineWidth=1.5;g.strokeStyle="#0D6B70";g.stroke();
+      g.font="600 "+(W*.0085)+"px sans-serif";g.fillStyle="#fff";g.textAlign="center";g.textBaseline=t<30?"bottom":"top";g.fillText(t,p[0]*W,p[1]*H+(t<30?-1:1)*W*.008)});
+  }
+}
+async function onXrayFile(e){
+  const f=e.target.files[0];e.target.value="";if(!f)return;
+  try{
+    const url=URL.createObjectURL(f);const im=new Image();
+    await new Promise((res,rej)=>{im.onload=res;im.onerror=()=>rej(new Error("無法讀取這個檔案，請選 JPG 或 PNG 圖片"));im.src=url});
+    const max=2600,s=Math.min(1,max/im.naturalWidth);const c=document.createElement("canvas");
+    c.width=Math.round(im.naturalWidth*s);c.height=Math.round(im.naturalHeight*s);c.getContext("2d").drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(url);
+    const blob=await new Promise(res=>c.toBlob(res,"image/jpeg",0.9));
+    await imgPut(cur.id,blob);
+    const keep=cur.xray&&cur.xray.pts;
+    cur.xray={pts:keep?cur.xray.pts:JSON.parse(JSON.stringify(XDEF)),off:keep?(cur.xray.off||{}):{},added:today()};
+    cur.updatedAt=Date.now();persist();
+    XV.calib=!keep;await loadXrayImg();
+    toast(keep?"已換上新的 X 光，沿用原本的對位":"請拖動 6 個大圓點，對準牙齒位置");
+  }catch(err){toast(err&&err.message?err.message:"儲存 X 光失敗")}
+}
+async function exportXrayPng(){
+  const c=document.createElement("canvas");drawXray(c);
+  const blob=await new Promise(res=>c.toBlob(res,"image/png"));
+  await deliver(cur.code+"_X光_"+(XV.k==="pre"?"術前":"術後")+".png",blob);
+}
+function xPoint(ev){const cv=$("#xCanvas");const b=cv.getBoundingClientRect();return[(ev.clientX-b.left)/b.width,(ev.clientY-b.top)/b.height,b]}
+function bindXray(){
+  const cv=$("#xCanvas");
+  cv.addEventListener("pointerdown",ev=>{
+    if(!XV.calib||!cur||!cur.xray)return;
+    const [x,y,b]=xPoint(ev);const ar=b.height/b.width;const d=(p)=>Math.hypot(p[0]-x,(p[1]-y)*ar);
+    let best=null,bd=.03;
+    Object.keys(cur.xray.pts).forEach(k=>{const dd=d(cur.xray.pts[k]);if(dd<bd){bd=dd;best={h:k}}});
+    if(!best){const pos=toothPos(cur.xray);let td=.015;ALL.forEach(t=>{if(!pos[t])return;const dd=d(pos[t]);if(dd<td){td=dd;best={t,start:[x,y],o:(cur.xray.off[t]||[0,0]).slice()}}})}
+    if(!best)return;XV.drag=best;cv.setPointerCapture(ev.pointerId);ev.preventDefault();
+  });
+  cv.addEventListener("pointermove",ev=>{
+    if(!XV.drag)return;const [x,y]=xPoint(ev);const dr=XV.drag;
+    const cx=Math.min(1,Math.max(0,x)),cy=Math.min(1,Math.max(0,y));
+    if(dr.h)cur.xray.pts[dr.h]=[cx,cy];
+    else cur.xray.off[dr.t]=[dr.o[0]+(cx-dr.start[0]),dr.o[1]+(cy-dr.start[1])];
+    drawXray();
+  });
+  const end=()=>{if(XV.drag){XV.drag=null;cur.updatedAt=Date.now();persist()}};
+  cv.addEventListener("pointerup",end);cv.addEventListener("pointercancel",end);
+  $("#xTools").addEventListener("click",ev=>{
+    const b=ev.target.closest("[data-xk],[data-x6],[data-xcal]");if(!b)return;
+    if(b.dataset.xk)XV.k=b.dataset.xk;
+    if(b.dataset.x6!=null)XV.six=b.dataset.x6==="1";
+    if(b.dataset.xcal)XV.calib=!XV.calib;
+    renderXray();
+  });
+  $("#xFile").onchange=onXrayFile;
+  window.addEventListener("resize",()=>{if(!$("#xray").hidden)drawXray()});
+}
+
 /* ================= backup ================= */
 function pack(recs){return JSON.stringify({app:"leaderway-perio",version:2,exportedAt:new Date().toISOString(),records:recs})}
 function stamp(){const d=new Date();return ymd(today())+"_"+String(d.getHours()).padStart(2,"0")+String(d.getMinutes()).padStart(2,"0")}
@@ -877,8 +1106,9 @@ function renderSettings(){
 if("serviceWorker" in navigator&&location.protocol==="https:"&&!/claude\.ai|claudeusercontent/.test(location.host)){
   window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 }
+bindXray();
 renderHome();
-window.__lw={get S(){return S},exportPlaque,status,openRec,exportSimplePdf,exportSimpleXlsx,exportAudit,renderPages,simplePage,auditPage1,auditPage2};
+window.__lw={get S(){return S},toothPos,exportSimplePng,printSimple,openXray,exportPlaque,status,openRec,exportSimplePdf,exportSimpleXlsx,exportAudit,renderPages,simplePage,auditPage1,auditPage2};
 })();
 </script>
 </body>
