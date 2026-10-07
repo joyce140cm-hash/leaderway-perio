@@ -149,7 +149,11 @@ textarea.raw{width:100%;min-height:140px;font-family:var(--num);font-size:12px;b
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;z-index:60;max-width:90vw}
 @media (prefers-reduced-motion:no-preference){.toast{animation:pop .18s ease-out}@keyframes pop{from{opacity:0;transform:translate(-50%,8px)}}}
 @media (max-width:560px){.bar h1{font-size:16px}.bar h1 small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar .btn{padding:6px 10px;font-size:14px;min-height:36px}.bar .wrap{gap:6px;padding:0 10px}}
-.exams{display:flex;gap:8px;margin-top:12px}
+.exams{display:flex;gap:8px;margin-top:12px;overflow-x:auto;scrollbar-width:none}
+.exams .exam{flex:1 0 auto;min-width:128px}
+.exams .addspt{flex:0 0 auto;border:1px dashed var(--line-strong);background:transparent;border-radius:12px;padding:8px 12px;font-size:14px;color:var(--accent)}
+.tag.warn{color:var(--warn)}.tag.go{color:var(--accent);font-weight:600}.tag.done{color:var(--muted)}
+.course{display:inline-block;font-size:11px;border:1px solid var(--accent);color:var(--accent);border-radius:6px;padding:0 5px;margin-left:6px;vertical-align:2px}
 .exam{flex:1;border:1px solid var(--line-strong);background:var(--surface);border-radius:12px;padding:8px 12px;text-align:left;font-size:15px;font-weight:600}
 .exam small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
 .exam[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1.5px var(--accent);background:var(--accent-soft)}
@@ -252,6 +256,7 @@ table.pinfo{width:100%;margin-bottom:4px;table-layout:fixed}
       <button class="btn" data-act="simpleXlsx">簡易版 Excel</button>
       <span class="sep" aria-hidden="true"></span>
       <button class="btn" data-act="auditPdf">健保抽審 PDF</button>
+      <button class="btn" data-act="plaquePdf">牙菌斑控制表 PDF</button>
     </div>
     <div class="modes" id="modes" role="group" aria-label="輸入項目"></div>
     <p class="hint" id="modeHint"></p>
@@ -282,12 +287,12 @@ const FURC_LAB={b:"頰側",m:"近心",d:"遠心",l:"舌側"};
 const ROMAN=["0","I","II","III"];
 const EXN={pre:"初診（術前）",post:"再評估（術後）"};
 const MODES=[
-  {k:"pd",n:"探測深度 PD",h:"點數字後自動跳下一格。順序：上顎頰側 → 上顎腭側 → 下顎舌側 → 下顎頰側，缺牙自動略過。"},
+  {k:"pd",n:"探測深度 PD",h:"點數字後自動跳下一格。順序：上顎頰側 → 上顎顎側 → 下顎舌側 → 下顎頰側，缺牙自動略過。"},
   {k:"gm",n:"牙齦位置 GM",h:"以 CEJ 為基準：牙齦退縮為正數，牙齦覆蓋過 CEJ 為負數。"},
   {k:"cal",n:"附連喪失 CAL",h:"CAL = PD + GM，自動計算，不需輸入。"},
   {k:"bop",n:"出血 BOP",h:"每個部位選「出血」或「無」，自動跳下一格。"},
   {k:"pl",n:"牙菌斑",h:"每個部位選「有」或「無」，自動跳下一格。"},
-  {k:"tooth",n:"牙齒狀態",h:"點牙位號碼，設定缺牙、植體、動搖度、角化牙齦與根分岔。缺牙與植體初診、再評估共用。"}
+  {k:"tooth",n:"牙齒狀態",h:"點牙位號碼，設定缺牙、植體、動搖度（D＝垂直可下壓）、角化牙齦與根分岔（以 mm 計）。缺牙與植體初診、再評估共用。"}
 ];
 const DEFAULT_DOCTORS=[{zh:"黃振邦",en:"Huang"},{zh:"蔡世軒",en:"Tsai"}];
 const LIB={
@@ -309,6 +314,12 @@ const blankEx=()=>({tooth:{},sites:{}});
 function T(r,t){return r.teeth[t]||(r.teeth[t]={missing:false,implant:false})}
 function ET(r,k,t){const e=r.ex[k];return e.tooth[t]||(e.tooth[t]={mob:null,km:null,furc:{}})}
 function SI(r,k,key){const e=r.ex[k];return e.sites[key]||(e.sites[key]={pd:null,gm:null,bop:false,pl:false})}
+const isSpt=k=>typeof k==="string"&&k[0]==="s"&&k.length>1;
+function hasPl(e){return!!e&&Object.keys(e.sites).some(k=>e.sites[k].plSet)}
+function days(d,to){if(!d)return null;const a=new Date(d+"T00:00:00"),b=new Date((to||today())+"T00:00:00");return Math.round((b-a)/864e5)}
+function addDays(d,n){const x=new Date(d+"T00:00:00");x.setDate(x.getDate()+n);return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0")}
+function norm(r){r.spt=r.spt||[];r.srpDate=r.srpDate||"";r.course=r.course||1;r.spt.forEach(v=>{r.ex[v.k]=r.ex[v.k]||blankEx()});return r}
+function sptMeta(r,k){return r.spt.find(v=>v.k===k)}
 function cal(s){return s&&s.pd!=null?s.pd+(s.gm||0):null}
 function hasData(e){return!!e&&Object.keys(e.sites).some(k=>{const s=e.sites[k];return s.pd!=null||s.bopSet||s.plSet})}
 const loaded={};
@@ -329,7 +340,7 @@ function migrateV1(old){
 function load(){
   try{
     const raw=localStorage.getItem(KEY);
-    if(raw){const s=JSON.parse(raw);s.records=s.records||[];if(!s.doctors||!s.doctors.length)s.doctors=DEFAULT_DOCTORS.slice();return s}
+    if(raw){const s=JSON.parse(raw);s.records=(s.records||[]).map(norm);if(!s.doctors||!s.doctors.length)s.doctors=DEFAULT_DOCTORS.slice();return s}
     const v1=localStorage.getItem("lw_perio_v1");
     if(v1){const o=JSON.parse(v1);return{records:migrateV1(o),doctors:o.doctors&&o.doctors.length?o.doctors:DEFAULT_DOCTORS.slice(),lastBackupAt:0}}
   }catch(e){storageOK=false}
@@ -403,9 +414,30 @@ document.addEventListener("click",e=>{
   else if(act==="simplePdf")run(a,()=>exportSimplePdf(cur));
   else if(act==="simpleXlsx")run(a,()=>exportSimpleXlsx(cur));
   else if(act==="auditPdf")auditCheck();
+  else if(act==="plaquePdf")run(a,()=>exportPlaque(cur));
 });
 async function run(btn,fn){if(btn.disabled)return;const t=btn.textContent;btn.disabled=true;btn.textContent="產生中…";
   try{await fn()}catch(e){toast(e&&e.message?e.message:"匯出失敗")}finally{btn.disabled=false;btn.textContent=t}}
+
+/* ================= status ================= */
+function lastSpt(r){return r.spt.reduce((m,v)=>!m||v.date>m?v.date:m,"")}
+function nextSptDate(r){if(!r.srpDate)return null;let d=addDays(r.srpDate,90);const l=lastSpt(r);if(l){const n=addDays(l,90);if(n>d)d=n}return d}
+function status(r){
+  const out=[];
+  const nx=S.records.find(x=>x.prevId===r.id);if(nx)return[["done","已開第 "+nx.course+" 療程（"+nx.code+"）"]];
+  if(!hasData(r.ex.post)){
+    const pd=days(r.preDate);
+    if(!r.srpDate)out.push(["done","待 91022C 刮除（完成後在基本資料填 SRP 日期）"]);
+    else{const d=days(r.srpDate);out.push(d<28?["","91023C 再評估：還要 "+(28-d)+" 天（"+addDays(r.srpDate,28)+" 起）"]:["go","可做 91023C 再評估"])}
+    if(pd!=null&&pd>=150)out.push(["warn","療程第 "+pd+" 天，上限 180 天"]);
+  }else{
+    const ns=nextSptDate(r);
+    if(ns)out.push(ns<=today()?["go","可做 91018C 支持性治療"]:["done","下次 91018C："+ns+" 起"]);
+    if(days(r.preDate)>=365)out.push(["go","已滿一年，可再收案（開新療程）"]);
+    else out.push(["done","可再收案："+addDays(r.preDate,365)+" 起"]);
+  }
+  return out;
+}
 
 /* ================= home ================= */
 function renderHome(){
@@ -422,7 +454,7 @@ function renderHome(){
     const post=hasData(r.ex.post);const st=stats(r,post?"post":"pre");
     h+='<button class="rec" data-open="'+esc(r.id)+'"><span class="code">'+esc(r.code)+'</span><span class="who">'+esc(r.name||"（未填姓名）")+'</span>'+
       '<span class="bop"><b>'+st.bopP.toFixed(0)+'%</b>BOP</span>'+
-      '<span class="meta" style="grid-column:1/3">'+esc(r.doctor.zh)+' 醫師'+(r.chartNo?'・病歷號 '+esc(r.chartNo):'')+'・'+(post?'<span class="tag">已再評估 '+esc(r.postDate||"")+'</span>':'待再評估')+'</span></button>';
+      '<span class="meta" style="grid-column:1/3">'+esc(r.doctor.zh)+' 醫師'+(r.chartNo?'・病歷號 '+esc(r.chartNo):'')+(r.course>1?'<span class="course">第 '+r.course+' 療程</span>':'')+'<br>'+status(r).map(x=>'<span class="tag '+x[0]+'">'+esc(x[1])+'</span>').join('・')+'</span></button>';
   });
   list.innerHTML=h+"</div>";
 }
@@ -461,7 +493,7 @@ function openNew(){
     if(!f.name){toast("請填病人姓名，回診時才找得到");return}
     const r={id:uid(),code:nextCode(d.en,date),doctor:{zh:d.zh,en:d.en},postDoctor:null,name:f.name,idNo:f.idNo.toUpperCase(),chartNo:f.chartNo,gender:f.gender,age:f.age,note:"",
       preDate:date,postDate:"",teeth:{},ex:{pre:blankEx(),post:blankEx()},createdAt:Date.now(),updatedAt:Date.now()};
-    S.records.push(r);persist();closeSheet();openRec(r);
+    norm(r);S.records.push(r);persist();closeSheet();openRec(r);
   };
 }
 function openInfo(){
@@ -469,15 +501,49 @@ function openInfo(){
   openSheet('<h3>基本資料・'+esc(r.code)+'</h3><div class="form">'+patientFields(r)+
     '<div class="two"><label>初診醫師<select name="doc">'+docOptions(r.doctor)+'</select></label><label>初診日期<input name="preDate" type="date" value="'+esc(r.preDate)+'"></label></div>'+
     '<div class="two"><label>再評估醫師<select name="pdoc">'+docOptions(r.postDoctor,true)+'</select></label><label>再評估日期<input name="postDate" type="date" value="'+esc(r.postDate)+'"></label></div>'+
-    '<label>備註<textarea name="note" rows="2">'+esc(r.note)+'</textarea></label><p class="hint">檔名編號建立後固定不變。</p></div>'+
+    '<label>SRP 刮除日期（91022C）<input name="srpDate" type="date" value="'+esc(r.srpDate)+'"></label>'+
+    (isSpt(ek)?'<label>這次支持性治療（91018C）日期<input name="sptDate" type="date" value="'+esc(sptMeta(r,ek).date)+'"></label>':'')+
+    '<label>備註<textarea name="note" rows="2">'+esc(r.note)+'</textarea></label><p class="hint">檔名編號建立後固定不變。</p>'+
+    '<button class="btn" id="newCourse" type="button">開始新療程（滿一年再收案）</button>'+
+    (isSpt(ek)?'<button class="btn danger" id="delSpt" type="button">刪除這次支持性治療紀錄</button>':'')+'</div>'+
     '<div class="actions"><button class="btn danger" id="delRec">刪除這位病人</button><span style="flex:1"></span><button class="btn" id="cInfo">取消</button><button class="btn primary" id="sInfo">儲存</button></div>');
   $("#cInfo").onclick=closeSheet;
   $("#sInfo").onclick=()=>{const f=readForm();const d=S.doctors[+f.doc];if(d)r.doctor={zh:d.zh,en:d.en};
     const pd=f.pdoc===""?null:S.doctors[+f.pdoc];r.postDoctor=pd?{zh:pd.zh,en:pd.en}:null;
-    Object.assign(r,{name:f.name,chartNo:f.chartNo,idNo:f.idNo.toUpperCase(),gender:f.gender,age:f.age,preDate:f.preDate||r.preDate,postDate:f.postDate,note:f.note,updatedAt:Date.now()});
+    Object.assign(r,{name:f.name,chartNo:f.chartNo,idNo:f.idNo.toUpperCase(),gender:f.gender,age:f.age,preDate:f.preDate||r.preDate,postDate:f.postDate,srpDate:f.srpDate,note:f.note,updatedAt:Date.now()});
+    if(isSpt(ek)&&f.sptDate)sptMeta(r,ek).date=f.sptDate;
     persist();closeSheet();renderEditor()};
+  $("#newCourse").onclick=newCourse;
+  if($("#delSpt"))$("#delSpt").onclick=()=>{const ans=prompt("刪除後無法復原。\n請輸入「刪除」確認：");
+    if(ans==="刪除"){r.spt=r.spt.filter(v=>v.k!==ek);delete r.ex[ek];ek="post";r.updatedAt=Date.now();persist();closeSheet();renderEditor();toast("已刪除這次支持性治療")}else if(ans!==null)toast("未刪除")};
   $("#delRec").onclick=()=>{const ans=prompt("刪除後無法復原（初診與再評估都會刪除）。\n請輸入編號 "+r.code+" 以確認：");
     if(ans===r.code){S.records=S.records.filter(x=>x.id!==r.id);persist();closeSheet();cur=null;toast("已刪除");go("home")}else if(ans!==null)toast("編號不符，未刪除")};
+}
+
+/* ================= support therapy / new course ================= */
+function addSpt(){
+  const r=cur;
+  if(!hasData(r.ex.post)){toast("請先完成再評估（91023C），才能做支持性治療");return}
+  const ns=nextSptDate(r);
+  const make=()=>{closeSheet();const k="s"+uid();r.ex[k]=blankEx();r.spt.push({k,date:today(),doctor:r.postDoctor||r.doctor});
+    r.updatedAt=Date.now();persist();ek=k;mode="pl";cursor=0;renderEditor();toast("已新增支持性治療，請輸入牙菌斑")};
+  if(ns&&ns>today()){
+    openSheet('<h3>還沒滿 90 天</h3><div class="warnbox">91018C 需與 91022C（SRP）及上次支持性治療間隔 90 天，最早 '+esc(ns)+' 才能申報。</div><div class="actions"><button class="btn" id="spC">取消</button><button class="btn primary" id="spG">仍要新增</button></div>');
+    $("#spC").onclick=closeSheet;$("#spG").onclick=make;return}
+  if(!r.srpDate){toast("提醒：基本資料尚未填 SRP（91022C）日期")}
+  make();
+}
+function newCourse(){
+  const r=cur;const d=days(r.preDate);
+  const make=()=>{
+    const doc=r.doctor;const date=today();const teeth={};
+    Object.keys(r.teeth).forEach(t=>{const x=r.teeth[t];if(x.missing||x.implant)teeth[t]={missing:x.missing,implant:x.implant}});
+    const n=norm({id:uid(),code:nextCode(doc.en,date),doctor:{zh:doc.zh,en:doc.en},postDoctor:null,name:r.name,idNo:r.idNo,chartNo:r.chartNo,gender:r.gender,age:r.age,note:"",
+      preDate:date,postDate:"",srpDate:"",teeth,ex:{pre:blankEx(),post:blankEx()},course:(r.course||1)+1,prevId:r.id,createdAt:Date.now(),updatedAt:Date.now()});
+    S.records.push(n);persist();closeSheet();openRec(n);toast("已建立第 "+n.course+" 療程，舊療程保留不變")};
+  const warn=d<365?'<div class="warnbox">距上次療程第一階段（'+esc(r.preDate)+'）只有 '+d+' 天，未滿一年，健保不會給付。</div>':'';
+  openSheet('<h3>開始新療程</h3>'+warn+'<p>會建立一個新的檔案（新的初診術前），沿用姓名、病歷號、身分證與缺牙／植體設定。<br>這個療程的資料保留不變，抽審時仍可隨時開啟。</p><div class="actions"><button class="btn" id="ncC">取消</button><button class="btn primary" id="ncG">建立新療程</button></div>');
+  $("#ncC").onclick=closeSheet;$("#ncG").onclick=make;
 }
 
 /* ================= editor ================= */
@@ -485,12 +551,17 @@ function renderEditor(){
   if(!cur){go("home");return}
   $("#edTitle").innerHTML=esc(cur.name||"（未填姓名）")+'<small>'+esc(cur.code)+'・'+esc(cur.doctor.zh)+' 醫師</small>';
   $("#exams").innerHTML=["pre","post"].map(k=>{const d=k==="pre"?cur.preDate:cur.postDate;
-    return'<button class="exam" data-ek="'+k+'" aria-pressed="'+(k===ek)+'">'+EXN[k]+'<small>'+(d?esc(d):(k==="post"?"尚未進行":""))+'</small></button>'}).join("");
-  $("#modes").innerHTML=MODES.map(m=>'<button class="mode" data-mode="'+m.k+'" aria-pressed="'+(m.k===mode)+'">'+m.n+'</button>').join("");
+    return'<button class="exam" data-ek="'+k+'" aria-pressed="'+(k===ek)+'">'+EXN[k]+'<small>'+(d?esc(d):(k==="post"?"尚未進行":""))+'</small></button>'}).join("")+
+    cur.spt.map((v,i)=>'<button class="exam" data-ek="'+v.k+'" aria-pressed="'+(v.k===ek)+'">支持性 91018C #'+(i+1)+'<small>'+esc(v.date)+'</small></button>').join("")+
+    '<button class="addspt" data-addspt="1">＋ 支持性治療</button>';
+  const spt=isSpt(ek);if(spt&&mode!=="pl")mode="pl";
+  $("#modes").innerHTML=(spt?MODES.filter(m=>m.k==="pl"):MODES).map(m=>'<button class="mode" data-mode="'+m.k+'" aria-pressed="'+(m.k===mode)+'">'+m.n+'</button>').join("");
   $("#modeHint").textContent=MODES.find(m=>m.k===mode).h;
   renderChart();renderPad();
 }
-$("#exams").addEventListener("click",e=>{const b=e.target.closest("[data-ek]");if(!b)return;ek=b.dataset.ek;
+$("#exams").addEventListener("click",e=>{
+  if(e.target.closest("[data-addspt]")){addSpt();return}
+  const b=e.target.closest("[data-ek]");if(!b)return;ek=b.dataset.ek;if(!isSpt(ek)&&mode==="pl"&&false)mode="pd";
   if(ek==="post"&&!cur.postDate){cur.postDate=today();cur.updatedAt=Date.now();persist();toast("再評估日期設為今天，可在基本資料修改")}
   cursor=0;renderEditor()});
 $("#modes").addEventListener("click",e=>{const b=e.target.closest("[data-mode]");if(!b)return;mode=b.dataset.mode;renderEditor()});
@@ -522,7 +593,7 @@ function rowHTML(teeth,surf,label,curKey){let h='<div class="lab">'+label+'</div
 function numRow(teeth){
   let h='<div class="lab">牙位</div>';
   teeth.forEach((t,i)=>{const tt=T(cur,t),et=ET(cur,ek,t);const tags=[];if(tt.implant)tags.push("植");if(et.mob)tags.push("M"+et.mob);
-    const fm=FURC[t]?Math.max(0,...FURC[t].map(x=>et.furc[x]||0)):0;if(fm)tags.push("F"+ROMAN[fm]);
+    const fm=FURC[t]?Math.max(0,...FURC[t].map(x=>et.furc[x]||0)):0;if(fm)tags.push("F"+fm);
     h+='<button class="tn'+(i===8?" mid":"")+(tt.missing?" miss":"")+(mode==="tooth"&&t===selTooth?" sel":"")+'" data-t="'+t+'"><b>'+t+'</b><i>'+tags.join(" ")+'</i></button>'});
   return h;
 }
@@ -530,7 +601,7 @@ function renderChart(){
   const box=$("#chart");const sl=box.scrollLeft;
   const seq=seqOf(cur);if(cursor>=seq.length)cursor=Math.max(0,seq.length-1);
   const cc=seq[cursor];const curKey=cc?cc.t+cc.surf+cc.p:"";
-  box.innerHTML='<div class="arch">'+rowHTML(UR,"f","頰側<br>Buccal",curKey)+numRow(UR)+rowHTML(UR,"l","腭側<br>Palatal",curKey)+'</div>'+
+  box.innerHTML='<div class="arch">'+rowHTML(UR,"f","頰側<br>Buccal",curKey)+numRow(UR)+rowHTML(UR,"l","顎側<br>Palatal",curKey)+'</div>'+
     '<div class="arch">'+rowHTML(LR,"l","舌側<br>Lingual",curKey)+numRow(LR)+rowHTML(LR,"f","頰側<br>Buccal",curKey)+'</div>';
   box.scrollLeft=sl;
   const el=box.querySelector(".c.cur");if(el){const br=box.getBoundingClientRect(),er=el.getBoundingClientRect();
@@ -551,7 +622,7 @@ function renderPad(){
   if(mode==="tooth"){renderToothPanel();return}
   const seq=seqOf(cur);const cc=seq[cursor];
   if(!cc){pad.innerHTML='<p class="hint">所有牙齒都標為缺牙，沒有可輸入的部位。</p>';return}
-  const surfName=cc.surf==="f"?"頰側":(cc.t<30?"腭側":"舌側");const pn={d:"遠心",c:"中央",m:"近心"}[cc.p];
+  const surfName=cc.surf==="f"?"頰側":(cc.t<30?"顎側":"舌側");const pn={d:"遠心",c:"中央",m:"近心"}[cc.p];
   const s=cur.ex[ek].sites[cc.t+cc.surf+cc.p];
   let val="未填";if(mode==="pd"&&s&&s.pd!=null)val=s.pd+" mm";if(mode==="gm"&&s&&s.gm!=null)val=s.gm+" mm";
   if(mode==="bop"&&s&&s.bopSet)val=s.bop?"出血":"無";if(mode==="pl"&&s&&s.plSet)val=s.pl?"有":"無";
@@ -560,7 +631,7 @@ function renderPad(){
   else if(mode==="gm"){for(let i=-4;i<=10;i++)keys+='<button class="key" data-v="'+i+'">'+(i>0?"+"+i:i)+'</button>'}
   else if(mode==="bop")keys='<button class="key wide yes" data-v="1">● 出血</button><button class="key wide" data-v="0">無</button>';
   else if(mode==="pl")keys='<button class="key wide plyes" data-v="1">● 有菌斑</button><button class="key wide" data-v="0">無</button>';
-  pad.innerHTML='<div class="padhead"><span><span class="exbadge">'+(ek==="pre"?"術前":"術後")+'</span> <b>'+cc.t+'</b> '+surfName+' '+pn+'・目前：'+val+'</span><span class="hint" style="margin:0">'+(cursor+1)+' / '+seq.length+'</span></div>'+
+  pad.innerHTML='<div class="padhead"><span><span class="exbadge">'+(ek==="pre"?"術前":ek==="post"?"術後":"91018C")+'</span> <b>'+cc.t+'</b> '+surfName+' '+pn+'・目前：'+val+'</span><span class="hint" style="margin:0">'+(cursor+1)+' / '+seq.length+'</span></div>'+
     '<div class="keys">'+keys+'</div><div class="navrow"><button class="btn" data-nav="-1">‹ 上一格</button><button class="btn" data-nav="clr">清除</button><button class="btn" data-nav="1">下一格 ›</button></div>';
 }
 $("#pad").addEventListener("click",e=>{
@@ -577,12 +648,12 @@ $("#pad").addEventListener("click",e=>{
 function renderToothPanel(){
   const t=selTooth,tt=T(cur,t),et=ET(cur,ek,t);
   const ch=(attr,val,on,label)=>'<button class="chip" '+attr+'="'+val+'" aria-pressed="'+on+'">'+label+'</button>';
-  let h='<div class="padhead"><span><span class="exbadge">'+(ek==="pre"?"術前":"術後")+'</span> <b>'+t+'</b> 號牙</span><span class="hint" style="margin:0">點上方牙位切換</span></div><div class="toothpanel">';
+  let h='<div class="padhead"><span><span class="exbadge">'+(ek==="pre"?"術前":ek==="post"?"術後":"91018C")+'</span> <b>'+t+'</b> 號牙</span><span class="hint" style="margin:0">點上方牙位切換</span></div><div class="toothpanel">';
   h+='<div class="fieldrow"><span>狀態</span><div class="chips">'+ch("data-st","none",!tt.missing&&!tt.implant,"自然牙")+ch("data-st","missing",tt.missing,"缺牙")+ch("data-st","implant",tt.implant,"植體")+'</div></div>';
   if(!tt.missing){
-    h+='<div class="fieldrow"><span>動搖度</span><div class="chips">'+[0,1,2,3].map(v=>ch("data-mob",v,et.mob===v,v)).join("")+'</div></div>';
+    h+='<div class="fieldrow"><span>動搖度</span><div class="chips">'+[0,1,2,3,"D"].map(v=>ch("data-mob",v,et.mob===v,v)).join("")+'</div></div>';
     h+='<div class="fieldrow"><span>角化牙齦</span><div class="chips">'+[0,1,2,3,4,5,6].map(v=>ch("data-km",v,et.km===v,v)).join("")+'</div></div>';
-    if(FURC[t])FURC[t].forEach(x=>{h+='<div class="fieldrow"><span>根分岔・'+FURC_LAB[x]+'</span><div class="chips">'+[0,1,2,3].map(v=>ch("data-fu",x+v,(et.furc[x]||0)===v,ROMAN[v])).join("")+'</div></div>'});
+    if(FURC[t])FURC[t].forEach(x=>{h+='<div class="fieldrow"><span>根分岔・'+FURC_LAB[x]+'（mm）</span><div class="chips">'+[0,1,2,3,4,5,6].map(v=>ch("data-fu",x+v,(et.furc[x]||0)===v,v)).join("")+'</div></div>'});
   }
   h+='</div><div class="navrow"><button class="btn" data-tn="-1">‹ 前一顆</button><button class="btn" data-tn="1">下一顆 ›</button></div>';
   $("#pad").innerHTML=h;
@@ -590,9 +661,9 @@ function renderToothPanel(){
 function toothClick(e){
   const tt=T(cur,selTooth),et=ET(cur,ek,selTooth);let b;
   if(b=e.target.closest("[data-st]")){const v=b.dataset.st;tt.missing=v==="missing";tt.implant=v==="implant"}
-  else if(b=e.target.closest("[data-mob]")){const v=+b.dataset.mob;et.mob=et.mob===v?null:v}
+  else if(b=e.target.closest("[data-mob]")){const v=b.dataset.mob==="D"?"D":+b.dataset.mob;et.mob=et.mob===v?null:v}
   else if(b=e.target.closest("[data-km]")){const v=+b.dataset.km;et.km=et.km===v?null:v}
-  else if(b=e.target.closest("[data-fu]")){const s=b.dataset.fu;et.furc[s[0]]=+s[1]}
+  else if(b=e.target.closest("[data-fu]")){const s=b.dataset.fu;et.furc[s[0]]=+s.slice(1)}
   else if(b=e.target.closest("[data-tn]")){const i=ALL.indexOf(selTooth);selTooth=ALL[(i+(+b.dataset.tn)+32)%32];renderChart();renderPad();return}
   else return;
   touch();renderChart();renderPad();
@@ -634,7 +705,7 @@ function simplePage(r){
   const im=improve(r);
   return '<div class="sh"><div><h1>牙周囊袋深度檢查</h1><p>立威口腔顎面外科</p></div>'+
     '<table class="info"><tr><th>姓名</th><td>'+esc(r.name)+'</td><th>醫師</th><td>'+esc(r.doctor.zh)+'</td><th>編號</th><td>'+esc(r.code)+'</td></tr></table></div>'+
-    '<table class="g">'+col+pdRows(UR,"f","頰側")+tRow(UR)+pdRows(UR,"l","腭側")+'</table>'+
+    '<table class="g">'+col+pdRows(UR,"f","頰側")+tRow(UR)+pdRows(UR,"l","顎側")+'</table>'+
     '<table class="g" style="margin-top:14px">'+col+pdRows(LR,"l","舌側")+tRow(LR)+pdRows(LR,"f","頰側")+'</table>'+
     '<div class="sfoot"><div class="leg"><span><i style="background:'+PC.ok[0]+';border-color:'+PC.ok[1]+'"></i>1–3 mm 健康</span><span><i style="background:'+PC.warn[0]+';border-color:'+PC.warn[1]+'"></i>4–5 mm 需要注意</span><span><i style="background:'+PC.deep[0]+';border-color:'+PC.deep[1]+'"></i>6 mm 以上 需要治療</span><span><i style="background:#E6E9EA;border-color:#9AA5A9"></i>缺牙</span></div>'+
     '<div class="sboxes">'+sum("pre")+sum("post")+(hasPost&&im.rate!=null?'<div class="sbox imp"><h4>治療成效</h4><div class="big">'+im.rate.toFixed(0)+'%</div><p>原本 ≥5mm 的 '+im.deep+' 顆牙中，'+im.imp+' 顆改善 2mm 以上</p></div>':'')+'</div></div>';
@@ -667,7 +738,7 @@ async function exportSimpleXlsx(r){
   const tRow=teeth=>{ws.mergeCells(row,1,row,2);const l=ws.getCell(row,1);l.value="牙位";l.font=font({bold:true});l.fill=fill("#14232A");l.font=font({bold:true,color:{argb:"FFFFFFFF"}});box(l);
     let col=3;teeth.forEach((tn,i)=>{ws.mergeCells(row,col,row,col+2);const c=ws.getCell(row,col);const tt=T(r,tn);c.value=tn+(tt.missing?" 缺":tt.implant?" 植":"");c.font=font({bold:true,size:11,strike:tt.missing});box(c,i===8?med:null);col+=3});
     ws.getRow(row).height=22;row++;};
-  pdRows(UR,"f","頰側");tRow(UR);pdRows(UR,"l","腭側");row++;pdRows(LR,"l","舌側");tRow(LR);pdRows(LR,"f","頰側");row++;
+  pdRows(UR,"f","頰側");tRow(UR);pdRows(UR,"l","顎側");row++;pdRows(LR,"l","舌側");tRow(LR);pdRows(LR,"f","頰側");row++;
   ["pre","post"].forEach(k=>{if(!hasData(r.ex[k]))return;const s=stats(r,k);ws.mergeCells(row,1,row,50);
     ws.getCell(row,1).value=(k==="pre"?"初診（術前）":"再評估（術後）")+"　1–3mm："+s.ok+"　4–5mm："+s.n4+"　≥6mm："+s.n6+"　牙齦出血："+s.bopP.toFixed(0)+"%　已檢查 "+s.meas+" 部位";ws.getCell(row,1).font=font({size:11});row++});
   const im=improve(r);if(im.hasPost&&im.rate!=null){ws.mergeCells(row,1,row,50);ws.getCell(row,1).value="治療成效：原本 ≥5mm 的 "+im.deep+" 顆牙中，"+im.imp+" 顆改善 2mm 以上（"+im.rate.toFixed(0)+"%）";ws.getCell(row,1).font=font({size:11,bold:true});row++}
@@ -696,7 +767,7 @@ function auditPage1(r){
   const L1=(txt,rs,cs,cl)=>'<th'+(rs>1?' rowspan="'+rs+'"':'')+(cs>1?' colspan="'+cs+'"':'')+' class="'+(cl||"y")+'">'+txt+'</th>';
   const phase=k=>'<th class="ph">'+(k==="pre"?"術前":"術後")+'</th>';
   const mobRow=(teeth,k,first,label)=>'<tr class="'+k+'">'+(first?L1(label,2,2):"")+phase(k)+teeth.map((t,i)=>{const tt=T(r,t);let x="";
-    if(tt.missing)x=k==="pre"?"X":"";else{const m=r.ex[k].tooth[t];if(m&&m.mob!=null&&(k==="pre"||hasPost))x=m.mob}
+    if(!tt.missing){const m=r.ex[k].tooth[t];if(m&&m.mob!=null&&(k==="pre"||hasPost))x=m.mob}
     return'<td colspan="3" class="'+(i===8?"mid":"")+'">'+x+'</td>'}).join("")+'</tr>';
   const furcCells=(teeth,k,lower)=>teeth.map((t,i)=>{
     if(!FURC[t])return'<td colspan="3" class="nf'+(i===8?" mid":"")+'"></td>';
@@ -709,7 +780,7 @@ function auditPage1(r){
   const pdRow=(teeth,surf,k,first,lab)=>'<tr class="'+k+'">'+(first?L1(lab,2,1)+L1("Probing<br>Depth",2,1):"")+phase(k)+
     teeth.map((t,i)=>siteOrder(t).map((p,j)=>{const miss=T(r,t).missing;const x=miss||(k==="post"&&!hasPost)?"":v(k,t+surf+p,"pd");
       return'<td class="'+(miss?"mx":"")+(j===0&&i===8?" mid":"")+'">'+x+'</td>'}).join("")).join("")+'</tr>';
-  const toothRow=teeth=>'<tr>'+L1("Tooth",1,3,"tl")+teeth.map((t,i)=>'<td colspan="3" class="tp'+(i===8?" mid":"")+'">'+t+'</td>').join("")+'</tr>';
+  const toothRow=teeth=>'<tr>'+L1("Tooth",1,3,"tl")+teeth.map((t,i)=>'<td colspan="3" class="tp'+(i===8?" mid":"")+'">'+(T(r,t).missing?"X":t)+'</td>').join("")+'</tr>';
   const noteRow=teeth=>'<tr>'+L1("Note",1,3,"nl")+teeth.map((t,i)=>{const tt=T(r,t);return'<td colspan="3" class="np'+(i===8?" mid":"")+'">'+(tt.missing?"缺牙":tt.implant?"植體":"")+'</td>'}).join("")+'</tr>';
   const col='<colgroup><col style="width:44px"><col style="width:44px"><col style="width:30px">'+'<col>'.repeat(48)+'</colgroup>';
   const im=improve(r);
@@ -731,18 +802,26 @@ function auditPage1(r){
   '<div class="anote"><b>Note：</b>治療前總齒數 <u>'+im.total+'</u> 顆；治療前囊袋≧5mm齒數 <u>'+im.deep+'</u> 顆<br>'+
   '<span style="padding-left:3.2em">治療後至少一個部位改善2mm齒數 <u>'+(hasPost?im.imp:"　")+'</u> 顆；改善率 <u>'+(hasPost&&im.rate!=null?im.rate.toFixed(1):"　")+'</u> %</span></div>';
 }
-function auditPage2(r){
-  const block=(k,show)=>{const has=show&&hasData(r.ex[k]);const s=has?stats(r,k):null;
-    const doc=!has?"":k==="pre"?r.doctor.zh:(r.postDoctor?r.postDoctor.zh:r.doctor.zh);const d=!has?"":k==="pre"?r.preDate:r.postDate;
+function auditPage2(r,keys){keys=keys||["pre","post",null];
+  const block=(k,show)=>{const has=show&&!!r.ex[k]&&hasPl(r.ex[k]);const s=has?stats(r,k):null;const sm=isSpt(k)?sptMeta(r,k):null;
+    const doc=!has?"":sm?(sm.doctor||r.doctor).zh:k==="pre"?r.doctor.zh:(r.postDoctor?r.postDoctor.zh:r.doctor.zh);const d=!has?"":sm?sm.date:k==="pre"?r.preDate:r.postDate;
     const row=(teeth,surf,lab)=>'<tr><th class="y">'+lab+'</th>'+teeth.map((t,i)=>siteOrder(t).map((p,j)=>{const miss=T(r,t).missing;const x=has&&r.ex[k].sites[t+surf+p];
-      return'<td class="'+(miss&&has?"mx":(x&&x.pl?"plq":""))+(j===0&&i===8?" mid":"")+'"></td>'}).join("")).join("")+'</tr>';
-    const trow=teeth=>'<tr><th class="tl">Tooth</th>'+teeth.map((t,i)=>'<td colspan="3" class="tp'+(i===8?" mid":"")+'">'+t+'</td>').join("")+'</tr>';
+      return'<td class="'+(j===0&&i===8?"mid":"")+'">'+(!miss&&x&&x.pl?"1":"")+'</td>'}).join("")).join("")+'</tr>';
+    const trow=teeth=>'<tr><th class="tl">Tooth</th>'+teeth.map((t,i)=>'<td colspan="3" class="tp'+(i===8?" mid":"")+'">'+(T(r,t).missing?"X":t)+'</td>').join("")+'</tr>';
     return'<table class="pinfo"><tr><th>醫師姓名</th><td>'+esc(doc)+'</td><th>執行日期</th><td>'+esc(d)+'</td><th class="w">Plaque Score（牙菌斑指數）=</th><td>'+(has?s.plP.toFixed(1):"")+'</td><th>%</th></tr></table>'+
       '<table class="ag pg2"><colgroup><col style="width:58px">'+'<col>'.repeat(48)+'</colgroup>'+row(UR,"f","Buccal")+trow(UR)+row(UR,"l","Palatal")+'<tr class="gap"><td colspan="49"></td></tr>'+row(LR,"l","Linqual")+trow(LR)+row(LR,"f","Buccal")+'</table>'};
   return'<div class="ah1">牙菌斑控制記錄表<br><span>Plaque Control Record（至少術前、術後各執行一次）</span></div>'+
   '<table class="ainfo"><tr><th>患者姓名<br>Name</th><td>'+esc(r.name)+'</td><th>身分證字號<br>ID</th><td>'+esc(r.idNo)+'</td><th>性別<br>Sex</th><td>'+esc(r.gender)+'</td><th>年齡<br>Age</th><td>'+esc(r.age)+'</td></tr></table>'+
-  '<div class="pblk">'+block("pre",true)+'</div><div class="pblk">'+block("post",true)+'</div><div class="pblk">'+block("x3",false)+'</div>'+
-  '<p class="plegend"><span style="color:#E8776E">■</span> 有牙菌斑　<span style="color:#AAAAAA">■</span> 缺牙</p>';
+  keys.map(k=>'<div class="pblk">'+block(k||"x",!!k)+'</div>').join("")+
+  '<p class="plegend">1：有牙菌斑　X：缺牙</p>';
+}
+async function exportPlaque(r){
+  let keys,suffix="";
+  if(isSpt(ek)){const i=r.spt.findIndex(v=>v.k===ek);keys=[ek,null,null];suffix="_支持性"+(i+1)}
+  else keys=["pre","post",null];
+  if(!keys.some(k=>k&&hasPl(r.ex[k]))){toast("還沒有輸入牙菌斑資料");return}
+  const blob=await renderPages([auditPage2(r,keys)],"p");
+  await deliver(r.code+"_牙菌斑控制表"+suffix+".pdf",blob);
 }
 async function exportAudit(r){
   const blob=await renderPages([auditPage1(r),auditPage2(r)],"p");
@@ -764,7 +843,7 @@ function mergeImport(text){
   let recs=data.records;if(data.version===1)recs=migrateV1({records:recs});
   let added=0,updated=0,skipped=0,renum=0;
   recs.forEach(r=>{
-    if(!r||!r.id||!r.code||!r.doctor||!r.ex)return;r.teeth=r.teeth||{};r.ex.pre=r.ex.pre||blankEx();r.ex.post=r.ex.post||blankEx();
+    if(!r||!r.id||!r.code||!r.doctor||!r.ex)return;r.teeth=r.teeth||{};r.ex.pre=r.ex.pre||blankEx();r.ex.post=r.ex.post||blankEx();norm(r);
     const i=S.records.findIndex(x=>x.id===r.id);
     if(i>=0){if((r.updatedAt||0)>(S.records[i].updatedAt||0)){r.code=S.records[i].code;S.records[i]=r;updated++}else skipped++}
     else{if(S.records.some(x=>x.code===r.code)){r.code=nextCode(r.doctor.en,r.preDate,r.id);renum++}S.records.push(r);added++}
@@ -799,7 +878,7 @@ if("serviceWorker" in navigator&&location.protocol==="https:"&&!/claude\.ai|clau
   window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 }
 renderHome();
-window.__lw={get S(){return S},openRec,exportSimplePdf,exportSimpleXlsx,exportAudit,renderPages,simplePage,auditPage1,auditPage2};
+window.__lw={get S(){return S},exportPlaque,status,openRec,exportSimplePdf,exportSimpleXlsx,exportAudit,renderPages,simplePage,auditPage1,auditPage2};
 })();
 </script>
 </body>
