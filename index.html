@@ -635,7 +635,7 @@ function cellHTML(t,surf,p,first,midline,curKey){
 function rowHTML(teeth,surf,label,curKey){let h='<div class="lab">'+label+'</div>';teeth.forEach((t,i)=>siteOrder(t).forEach((p,j)=>{h+=cellHTML(t,surf,p,j===0,i===8,curKey)}));return h}
 function numRow(teeth){
   let h='<div class="lab">牙位</div>';
-  teeth.forEach((t,i)=>{const tt=T(cur,t),et=ET(cur,ek,t);const tags=[];if(tt.implant)tags.push("植");if(et.mob)tags.push("M"+et.mob);
+  teeth.forEach((t,i)=>{const tt=T(cur,t),et=ET(cur,ek,t);const tags=[];if(tt.implant)tags.push("植");if(et.mob)tags.push("M"+et.mob);(tt.tags||[]).concat(et.tags||[]).forEach(x=>tags.push({牙冠:"冠",根管:"根",化膿:"膿",結石:"石"}[x]||x));
     const fm=FURC[t]?Math.max(0,...FURC[t].map(x=>et.furc[x]||0)):0;if(fm)tags.push("F"+fm);
     h+='<button class="tn'+(i===8?" mid":"")+(tt.missing?" miss":"")+(mode==="tooth"&&t===selTooth?" sel":"")+'" data-t="'+t+'"><b>'+t+'</b><i>'+tags.join(" ")+'</i></button>'});
   return h;
@@ -698,6 +698,7 @@ function renderToothPanel(){
   if(!tt.missing){
     h+='<div class="fieldrow"><span>動搖度</span><div class="chips">'+[0,1,2,3,"D"].map(v=>ch("data-mob",v,et.mob===v,v)).join("")+'</div></div>';
     h+='<div class="fieldrow"><span>角化牙齦</span><div class="chips">'+[0,1,2,3,4,5,6].map(v=>ch("data-km",v,et.km===v,v)).join("")+'</div></div>';
+    h+='<div class="fieldrow"><span>備註</span><div class="chips">'+["牙冠","根管"].map(x=>ch("data-tag","T"+x,(tt.tags||[]).includes(x),x)).join("")+["化膿","結石"].map(x=>ch("data-tag","E"+x,(et.tags||[]).includes(x),x)).join("")+'</div></div>';
     if(FURC[t])FURC[t].forEach(x=>{h+='<div class="fieldrow"><span>根分岔・'+FURC_LAB[x]+'（mm）</span><div class="chips">'+[0,1,2,3,4,5,6].map(v=>ch("data-fu",x+v,(et.furc[x]||0)===v,v)).join("")+'</div></div>'});
   }
   h+='</div><div class="navrow"><button class="btn" data-tn="-1">‹ 前一顆</button><button class="btn" data-tn="1">下一顆 ›</button></div>';
@@ -709,6 +710,7 @@ function toothClick(e){
   else if(b=e.target.closest("[data-mob]")){const v=b.dataset.mob==="D"?"D":+b.dataset.mob;et.mob=et.mob===v?null:v}
   else if(b=e.target.closest("[data-km]")){const v=+b.dataset.km;et.km=et.km===v?null:v}
   else if(b=e.target.closest("[data-fu]")){const s=b.dataset.fu;et.furc[s[0]]=+s.slice(1)}
+  else if(b=e.target.closest("[data-tag]")){const v=b.dataset.tag;const o=v[0]==="T"?tt:et;const x=v.slice(1);o.tags=o.tags||[];o.tags=o.tags.includes(x)?o.tags.filter(y=>y!==x):o.tags.concat(x)}
   else if(b=e.target.closest("[data-tn]")){const i=ALL.indexOf(selTooth);selTooth=ALL[(i+(+b.dataset.tn)+32)%32];renderChart();renderPad();return}
   else return;
   touch();renderChart();renderPad();
@@ -826,7 +828,7 @@ function auditPage1(r){
     teeth.map((t,i)=>siteOrder(t).map((p,j)=>{const miss=T(r,t).missing;const x=miss||(k==="post"&&!hasPost)?"":v(k,t+surf+p,"pd");
       return'<td class="'+(miss?"mx":"")+(j===0&&i===8?" mid":"")+'">'+x+'</td>'}).join("")).join("")+'</tr>';
   const toothRow=teeth=>'<tr>'+L1("Tooth",1,3,"tl")+teeth.map((t,i)=>'<td colspan="3" class="tp'+(i===8?" mid":"")+'">'+(T(r,t).missing?"X":t)+'</td>').join("")+'</tr>';
-  const noteRow=teeth=>'<tr>'+L1("Note",1,3,"nl")+teeth.map((t,i)=>{const tt=T(r,t);return'<td colspan="3" class="np'+(i===8?" mid":"")+'">'+(tt.missing?"缺牙":tt.implant?"植體":"")+'</td>'}).join("")+'</tr>';
+  const noteRow=teeth=>'<tr>'+L1("Note",1,3,"nl")+teeth.map((t,i)=>{const tt=T(r,t);return'<td colspan="3" class="np'+(i===8?" mid":"")+'">'+[tt.missing?"缺牙":tt.implant?"植體":""].concat(tt.tags||[],((r.ex.pre.tooth[t]||{}).tags)||[]).filter(Boolean).join(" ")+'</td>'}).join("")+'</tr>';
   const col='<colgroup><col style="width:44px"><col style="width:44px"><col style="width:30px">'+'<col>'.repeat(48)+'</colgroup>';
   const im=improve(r);
   const pdoc=r.postDoctor?r.postDoctor.zh:(hasPost?r.doctor.zh:"");
@@ -1069,36 +1071,125 @@ function bindXray(){
 }
 
 /* ================= voice input ================= */
-const VC={on:false,rec:null,phase:"idle",last:null,undo:null,heard:"",ac:null,lastTooth:null,lastAt:0};
-const ZD={"零":0,"〇":0,"一":1,"么":1,"壹":1,"二":2,"兩":2,"两":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9};
+const VC={on:false,rec:null,phase:"idle",heard:"",ac:null,lastTooth:null,lastAt:0,lastGroup:null,stack:[],paused:false,finishAfter:false,wake:null,png:null};
 const ZN=["零","一","二","三","四","五","六","七","八","九"];
-function vset(){S.voice=S.voice||{};return Object.assign({mode:"tooth",rate:1.5},S.voice)}
-function zhNum(n){if(n<10)return ZN[n];if(n===10)return"十";if(n<20)return"十"+ZN[n%10];return ZN[Math.floor(n/10)]+"十"+(n%10?ZN[n%10]:"")}
+function vset(){S.voice=S.voice||{};const v=Object.assign({mode:"tooth",rate:1.5,custom:[]},S.voice);if(!Array.isArray(v.custom))v.custom=[];return v}
+function zhNum(n){if(n==="D")return"D";if(n<0)return"負"+zhNum(-n);if(n<10)return ZN[n];if(n===10)return"十";if(n<20)return"十"+ZN[n%10];return ZN[Math.floor(n/10)]+"十"+(n%10?ZN[n%10]:"")}
+function zhTooth(t){return zhNum(t)}
 function zhVals(vals){return vals.some(v=>v>=10)?vals.map(zhNum).join("、"):vals.map(v=>ZN[v]).join("")}
-function parseVals(txt){
-  let s=String(txt).replace(/[，,。．.、！!？?：:；;]/g," ").trim();
-  if(/[百]/.test(s))s=s.replace(/[百十]/g,"");
-  // 阿拉伯數字以空白分隔且剛好三組：可能含 10 以上
-  const arab=s.match(/\d+/g);
-  if(arab&&!/[零〇一么壹二兩两三四五六七八九十]/.test(s)){
-    if(arab.length===3)return arab.map(Number);
-    const d=arab.join("");if(d.length===3)return d.split("").map(Number);
-    return null;
+function validTooth(n){const q=Math.floor(n/10),p=n%10;return q>=1&&q<=4&&p>=1&&p<=8}
+
+/* ---- 字典 ---- */
+const V_STRONG={"零":0,"〇":0,"一":1,"么":1,"壹":1,"二":2,"兩":2,"两":2,"貳":2,"三":3,"叁":3,"參":3,"四":4,"五":5,"伍":5,"六":6,"陸":6,"七":7,"八":8,"捌":8,"九":9,"玖":9};
+const V_WEAK={"衣":1,"依":1,"醫":1,"伊":1,"腰":1,"兒":2,"而":2,"耳":2,"爾":2,"山":3,"衫":3,"傘":3,"散":3,"杉":3,"是":4,"事":4,"寺":4,"思":4,"死":4,"似":4,"市":4,"試":4,"午":5,"舞":5,"吳":5,"無":5,"武":5,"屋":5,"溜":6,"留":6,"劉":6,"流":6,"期":7,"其":7,"騎":7,"起":7,"妻":7,"漆":7,"吧":8,"巴":8,"拔":8,"爸":8,"疤":8,"芭":8,"酒":9,"久":9,"就":9,"舊":9,"救":9,"時":"十","石":"十","實":"十"};
+const V_EN={zero:0,one:1,won:1,wan:1,two:2,to:2,too:2,three:3,tree:3,free:3,four:4,for:4,five:5,six:6,sick:6,seven:7,eight:8,ate:8,nine:9,night:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18};
+const V_SYN=[
+ ["停止","停止 結束 好了 stop"],["暫停","暫停 站停 佔停 pause"],["繼續","繼續 記序 機續 continue resume"],
+ ["重來","重來 從來 崇來 重新 重唸 重念 再來 錯了 again redo repeat undo"],
+ ["上一顆","上一顆 上一個 上一棵 上一科 上依顆 前一顆 往前 回去 back previous"],
+ ["下一顆","下一顆 下一個 下一棵 下一科 跳過 next skip"],
+ ["下一面","下一面 換邊 換面"],["跳到","跳到 掉到 條到 跳去"],
+ ["開始","開始測量 開始量 開始 start"],["儲存","儲存 存檔 存起來 存圖 save"],
+ ["初診","初診 術前 initial"],["再評估","再評估 術後 reevaluation re-evaluation"],["支持性","支持性治療 支持性 維護期 maintenance spt"],
+ ["缺牙","缺牙 確牙 卻牙 缺芽 雀牙 缺了 沒牙 拔掉 missing missin mising miss 密星 米星 咪醒"],
+ ["植體","植體 植牙 指體 直體 紙體 implant"],
+ ["出血","出血 出席 初雪 出穴 出學 處血 流血 有血 bleeding bleed blood bop"],
+ ["菌斑","牙菌斑 菌斑 軍班 君班 均斑 plaque"],
+ ["動搖","動搖度 動搖 洞搖 凍搖 東搖 動遙 搖動 mobility mobile"],
+ ["根分岔","根分岔 根分叉 跟分岔 跟分叉 根分查 跟分查 furcation"],
+ ["退縮","退縮 推縮 腿縮 退出 recession"],["增生","增生 真生 爭生 overgrowth"],
+ ["角化","角化牙齦 角化 腳化 教化 叫化 kg km"],
+ ["化膿","化膿 溢膿 話濃 畫農 pus suppuration"],["結石","牙結石 結石 節食 潔實 calculus"],
+ ["牙冠","牙冠 牙關 假牙 crown 克朗"],["根管","根管 跟管 根館 抽神經 rct"],
+ ["全部","三個都是 三個都 三個 全部 都是 all"],["改","改成 改為 改"],
+ ["頰側","頰側 夾側 假側 甲側 家側 架側 buccal bucal 八口 巴口 八扣 巴扣 霸口 布扣"],
+ ["顎側","顎側 腭側 惡側 餓側 鄂側 額側 二側 palatal palate 扒拉頭 趴拉頭 帕拉圖 巴拉頭 怕拉頭"],
+ ["舌側","舌側 蛇側 折側 設側 社側 lingual lingo 靈狗 林果 林骨 領國"],
+ ["下顎","換下顎 下顎"],["上顎","換上顎 上顎"],
+ ["遠心","遠心 遠新 原心 願心 遠興 distal"],["近心","近心 進心 盡心 近新 mesial missile 米修"],
+ ["中間","中間 中央 中心 middle center"]
+];
+const V_Q=[[1,"右上顎 上顎右側 右上 第一象限 upper right ur"],[2,"左上顎 上顎左側 左上 第二象限 upper left ul"],[3,"左下顎 下顎左側 左下 第三象限 lower left ll"],[4,"右下顎 下顎右側 右下 第四象限 lower right lr"]];
+const V_NAME=[[8,"第三大臼齒 智齒 wisdom tooth wisdom third molar"],[7,"第二大臼齒 second molar"],[6,"第一大臼齒 first molar"],[5,"第二小臼齒 第二前臼齒 second premolar second bicuspid"],[4,"第一小臼齒 第一前臼齒 first premolar first bicuspid"],
+  [6,"大臼齒 臼齒 molar"],[4,"小臼齒 前臼齒 premolar bicuspid"],[3,"犬齒 虎牙 canine cuspid"],[2,"側門牙 旁門牙 lateral incisor"],[1,"正中門牙 大門牙 central incisor 門牙"]];
+function reEsc(s){return s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}
+function altRe(list){return list.slice().sort((a,b)=>b.length-a.length).map(w=>/^[a-z0-9 -]+$/.test(w)?"\\b"+reEsc(w).replace(/ /g,"\\s*")+"\\b":reEsc(w)).join("|")}
+const V_KEYS=V_SYN.map(x=>x[0]).concat(["D"]);
+const V_SYNRE=(()=>{const all=[];V_SYN.forEach(([k,ws])=>ws.split(" ").forEach(w=>all.push([w,k])));all.sort((a,b)=>b[0].length-a[0].length);
+  return{re:new RegExp(all.map(([w])=>/^[a-z0-9-]+$/.test(w)?"\\b"+reEsc(w)+"\\b":reEsc(w)).join("|"),"g"),map:Object.fromEntries(all)}})();
+const mk=k=>" 【K"+V_KEYS.indexOf(k)+"】 ";
+function qAlt(){return V_Q.map(([q,ws])=>[q,ws.replace(/upper right|upper left|lower left|lower right/g,m=>m.replace(" ","_")).split(" ").map(w=>w.replace("_"," "))])}
+function nameAlt(){return V_NAME.map(([p,ws])=>[p,ws.replace(/wisdom tooth|third molar|second molar|first molar|second premolar|second bicuspid|first premolar|first bicuspid|lateral incisor|central incisor/g,m=>m.replace(" ","_")).split(" ").map(w=>w.replace("_"," "))])}
+
+/* ---- 正規化成 token ---- */
+function curQuad(){const seq=seqOf(cur);const c=seq[cursor];return c?Math.floor(c.t/10):1}
+function vTokens(raw){
+  let s=String(raw||"");
+  vset().custom.forEach(c=>{if(c&&c.from)s=s.split(c.from).join(c.to||"")});
+  s=s.replace(/[\uFF01-\uFF5E]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).toLowerCase().replace(/([a-z])(\d)/g,"$1 $2").replace(/(\d)([a-z])/g,"$1 $2");
+  s=s.replace(/\b(go|jump)\s*to\b/g,"跳到");
+  s=s.replace(/\b(twenty|thirty|forty)[\s-]*(one|two|three|four|five|six|seven|eight)?\b/g,(m,a,b)=>" "+({twenty:2,thirty:3,forty:4}[a])+(b?V_EN[b]:0)+" ");
+  s=s.replace(new RegExp("\\b("+Object.keys(V_EN).join("|")+")\\b","g"),w=>" "+V_EN[w]+" ");
+  // 牙名、象限
+  const QA=qAlt(),NA=nameAlt();
+  const qRe=QA.map(([q,ws])=>"(?:"+altRe(ws)+")").join("|");
+  const nAll=[];NA.forEach(([p,ws])=>ws.forEach(w=>nAll.push([w,p])));
+  const nRe=altRe(nAll.map(x=>x[0]));
+  const qOf=w=>{for(const [q,ws] of QA){if(new RegExp("^(?:"+altRe(ws)+")$").test(w))return q}return null};
+  const pOf=w=>{for(const [x,p] of nAll){if(new RegExp("^(?:"+altRe([x])+")$").test(w))return p}return null};
+  s=s.replace(new RegExp("("+qRe+")\\s*的?\\s*("+nRe+")","g"),(m,a,b)=>" 【T"+(qOf(a)*10+pOf(b))+"】 ");
+  s=s.replace(new RegExp("("+qRe+")\\s*的?\\s*([1-8一二三四五六七八])(?![0-9一二三四五六七八九十])","g"),(m,a,b)=>{const p=/\d/.test(b)?+b:V_STRONG[b];return" 【T"+(qOf(a)*10+p)+"】 "});
+  s=s.replace(new RegExp(nRe,"g"),m=>" 【T"+(curQuad()*10+pOf(m))+"】 ");
+  s=s.replace(new RegExp(qRe,"g")," ");
+  // 第N個
+  s=s.replace(/第\s*([一二三123])\s*(個|點)/g,(m,a)=>" 【P"+(/\d/.test(a)?a:V_STRONG[a])+"】 ");
+  // 動搖度 D
+  s=s.replace(/(動搖度|動搖|洞搖|凍搖|東搖|動遙|搖動|mobility|mobile)\s*(d|弟|低|地|帝|迪|垂直)(?![a-z])/g,(m,a)=>a+mk("D"));
+  // 指令同義詞
+  s=s.replace(V_SYNRE.re,m=>mk(V_SYNRE.map[m]));
+  // 單位、雜字
+  s=s.replace(/毫米|公釐|mm|millimeters?|米/g," ").replace(/號牙|號|顆|牙齒|tooth|number|#/g," ").replace(/\b(point|dash)\b/g," ");
+  // 弱同音字：短句且大部分是數字類才轉
+  const bare=s.replace(/【[^】]*】/g,"").replace(/[\s,，、。.．!！?？:：;；\-—_]/g,"");
+  if(bare){let dig=0,oth=0;for(const c of bare){if(/\d/.test(c)||V_STRONG[c]!=null||V_WEAK[c]!=null||c==="十"||c==="百"||c==="千")dig++;else if(!"的個呢啊喔嗯那".includes(c))oth++}
+    const strong=/[0-9零〇一么壹二兩两貳三叁參四五伍六陸七八捌九玖]/.test(bare);
+    if(strong&&oth<=1&&dig/(dig+oth)>=.75)s=s.split(/(【[^】]*】)/).map(seg=>seg[0]==="【"?seg:seg.replace(/./g,c=>V_WEAK[c]!=null?String(V_WEAK[c]):c)).join("")}
+  // 中文大數：三千二百三十三 → 3233；X十Y → XY
+  s=s.replace(/([一二三四五六七八九兩两0-9])\s*[千百]/g,"$1").replace(/[千百]/g,"");
+  s=s.replace(/([一二三四五六七八九兩两0-9])\s*十\s*(?=[一二三四五六七八九兩两0-9])/g,"$1");
+  s=s.replace(/([一二三四五六七八九兩两0-9])\s*十/g,"$1 0");
+  s=s.replace(/[零〇一么壹二兩两貳三叁參四五伍六陸七八捌九玖]/g,c=>String(V_STRONG[c]));
+  // token 化
+  const toks=[];const re=/【([^】]+)】|十|\d+(?:\.\d+)?/g;let m;
+  while((m=re.exec(s))){
+    if(m[1]){const v=m[1];if(/^T\d+$/.test(v))toks.push({k:"T",v:+v.slice(1)});else if(/^P\d$/.test(v))toks.push({k:"pos",idx:+v.slice(1)-1});else if(/^K\d+$/.test(v))toks.push({k:"m",v:V_KEYS[+v.slice(1)]})}
+    else if(m[0]==="十")toks.push({k:"ten"});
+    else toks.push({k:"d",v:m[0].replace(".","")});
   }
+  return toks;
+}
+/* 把數字 token 轉成「數值」與「純數字串」 */
+function vDigits(toks){return toks.filter(t=>t.k==="d"||t.k==="ten")}
+function vValues(dt){
+  const groups=dt.map(t=>t.k==="ten"?"十":t.v);
+  if(groups.length>1&&!groups.includes("十")&&groups.every(g=>+g<=15)&&groups.some(g=>g.length>1)&&groups.length%3===0)return groups.map(Number);
   const out=[];
-  for(let i=0;i<s.length;i++){const c=s[i];
-    if(/\d/.test(c)){out.push(+c);continue}
-    if(c==="十"){const nx=ZD[s[i+1]];if(nx!=null&&nx>0&&nx<=5){out.push(10+nx);i++}else out.push(10);continue}
-    if(ZD[c]!=null)out.push(ZD[c]);
+  for(let i=0;i<groups.length;i++){const g=groups[i];
+    if(g==="十"){const nx=groups[i+1];if(nx&&nx!=="十"&&nx.length===1&&+nx>=1&&+nx<=5){out.push(10+(+nx));i++}else out.push(10);continue}
+    g.split("").forEach(c=>out.push(+c));
   }
-  return out.length===3?out:null;
+  return out;
 }
-function parseMob(txt){
-  const m=String(txt).match(/動搖(?:度)?\s*([0-3零〇一二兩两三Dd]|垂直|弟|低|地)/);
-  if(!m)return null;const c=m[1];
-  if(/[Dd弟低地]|垂直/.test(c))return"D";
-  return /\d/.test(c)?+c:ZD[c];
+function vDigitStr(dt){return dt.map(t=>t.k==="ten"?"1":t.v).join("")}
+function vTeethFrom(toks){
+  const out=toks.filter(t=>t.k==="T").map(t=>t.v);
+  const ds=vDigitStr(vDigits(toks));
+  if(ds.length&&ds.length%2===0){for(let i=0;i<ds.length;i+=2){const n=+ds.slice(i,i+2);if(validTooth(n))out.push(n);else return{teeth:out,bad:true}}}
+  else if(ds.length)return{teeth:out,bad:true};
+  return{teeth:[...new Set(out)],bad:false};
 }
+
+/* ---- 聲音 ---- */
 function beep(){
   try{const ac=VC.ac||(VC.ac=new(window.AudioContext||window.webkitAudioContext)());
     if(ac.state==="suspended")ac.resume();
@@ -1107,14 +1198,13 @@ function beep(){
     o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+.18);
   }catch(e){}
 }
-function zhVoice(){const vs=speechSynthesis.getVoices();return vs.find(v=>/zh[-_]TW/i.test(v.lang))||vs.find(v=>/zh/i.test(v.lang))||null}
-function say(text,cb){
-  const st=vset();
-  const next=()=>{if(cb)setTimeout(cb,40)};
-  if(st.mode==="beep"||!("speechSynthesis" in window)||!text){next();return}
+function pickVoice(lang){const vs=speechSynthesis.getVoices();return lang==="en"?(vs.find(v=>/en[-_]US/i.test(v.lang))||vs.find(v=>/^en/i.test(v.lang))):(vs.find(v=>/zh[-_]TW/i.test(v.lang))||vs.find(v=>/zh/i.test(v.lang)))}
+function say(text,cb,lang){
+  const st=vset();const next=()=>{if(cb)setTimeout(cb,40)};
+  if((st.mode==="beep"&&lang!=="en")||!("speechSynthesis" in window)||!text){next();return}
   try{
     speechSynthesis.cancel();
-    const u=new SpeechSynthesisUtterance(text);u.lang="zh-TW";u.rate=st.rate;const v=zhVoice();if(v)u.voice=v;
+    const u=new SpeechSynthesisUtterance(text);u.lang=lang==="en"?"en-US":"zh-TW";u.rate=st.rate;const v=pickVoice(lang);if(v)u.voice=v;
     let done=false;const fin=()=>{if(done)return;done=true;next()};
     u.onend=fin;u.onerror=fin;setTimeout(fin,Math.max(2500,text.length*450/st.rate));
     speechSynthesis.speak(u);
@@ -1125,89 +1215,240 @@ function groupAt(seq,i){
   let e=s;while(e<seq.length&&seq[e].t===c.t&&seq[e].surf===c.surf)e++;return{start:s,end:e,items:seq.slice(s,e)}}
 function vStatus(msg,heard){const el=$("#vStat");if(el)el.textContent=msg;if(heard!=null){VC.heard=heard;const h=$("#vHeard");if(h)h.textContent=heard}}
 function vListen(){
-  if(!VC.on)return;
-  VC.phase="listen";vStatus("請唸數字…");
+  if(!VC.on)return;VC.phase="listen";vStatus(VC.paused?"暫停中（說「繼續」）":"請說…");
   try{VC.rec.start()}catch(e){setTimeout(()=>{if(VC.on&&VC.phase==="listen")try{VC.rec.start()}catch(_){}},300)}
 }
-function vReply(text){
-  VC.phase="speak";vStatus("回報中…");
-  try{VC.rec.abort()}catch(e){}
-  say(text,()=>{if(!VC.on)return;beep();if(VC.finishAfter){voiceStop("全部完成，已停止語音輸入");return}setTimeout(vListen,180)});
+function vReply(text,lang){
+  VC.phase="speak";vStatus("回報中…");try{VC.rec.abort()}catch(e){}
+  say(text,()=>{if(!VC.on)return;beep();if(VC.finishAfter){voiceStop("全部完成，已停止語音輸入");return}setTimeout(vListen,180)},lang);
 }
+function vAgain(heard){vStatus("沒聽懂",heard);vReply("Again","en")}
+
+/* ---- 狀態工具 ---- */
+function vPush(){VC.stack.push({snap:JSON.stringify(cur),cursor,ek,lastGroup:VC.lastGroup});if(VC.stack.length>40)VC.stack.shift()}
+function vUndo(){const u=VC.stack.pop();if(!u)return false;const o=JSON.parse(u.snap);Object.keys(cur).forEach(k=>delete cur[k]);Object.assign(cur,o);cursor=u.cursor;ek=u.ek;VC.lastGroup=u.lastGroup;touch();renderEditor();return true}
+function pre(t){return vset().mode==="digits"?"":zhTooth(t)+"，"}
+function findGroup(t,surf){const seq=seqOf(cur);let i=-1;
+  if(surf)i=seq.findIndex(x=>x.t===t&&x.surf===surf);
+  if(i<0){const c=seq[cursor];if(c)i=seq.findIndex(x=>x.t===t&&x.surf===c.surf)}
+  if(i<0)i=seq.findIndex(x=>x.t===t);
+  return i<0?null:groupAt(seq,i)}
+function surfOf(toks,t){const m=toks.find(x=>x.k==="m"&&/^(頰側|顎側|舌側)$/.test(x.v));if(!m)return null;return m.v==="頰側"?"f":"l"}
+function posKey(toks){const m=toks.find(x=>x.k==="m"&&/^(遠心|近心|中間)$/.test(x.v));if(m)return{遠心:"d",近心:"m",中間:"c"}[m.v];const p=toks.find(x=>x.k==="pos");return p?{idx:p.idx}:null}
+function lastTarget(){
+  if(VC.lastGroup&&Date.now()-VC.lastAt<20000)return VC.lastGroup;
+  const seq=seqOf(cur);const g=groupAt(seq,cursor);return g?{t:g.items[0].t,surf:g.items[0].surf,keys:g.items.map(c=>c.t+c.surf+c.p),items:g.items}:null;
+}
+function tagSet(t,tag){
+  const tooth=(tag==="牙冠"||tag==="根管");const o=tooth?T(cur,t):ET(cur,ek,t);o.tags=o.tags||[];if(!o.tags.includes(tag))o.tags.push(tag)}
+
+/* ---- 主判斷 ---- */
 function vHandle(raw){
   const txt=String(raw||"").trim();if(!txt){vListen();return}
+  const toks=vTokens(txt);const M=k=>toks.some(t=>t.k==="m"&&t.v===k);
   const seq=seqOf(cur);
-  const say1=(t)=>vset().mode==="digits"?"":zhNum(t)+"，";
-  if(/停止|結束|停/.test(txt)&&txt.length<=4){voiceStop("已停止語音輸入");return}
-  if(/重來|重新|重唸|重念|再來/.test(txt)){
-    if(!VC.undo){vReply("沒有可以重來的");return}
-    const u=VC.undo;Object.keys(u.prev).forEach(k=>{cur.ex[ek].sites[k]=u.prev[k]});touch();
-    const i=seqOf(cur).findIndex(x=>x.t+x.surf+x.p===u.firstKey);cursor=i>=0?i:cursor;VC.undo=null;renderChart();renderPad();
-    vReply(say1(u.t)+"重來");return}
-  if(/上一顆|上一個|上一格|前一顆/.test(txt)){
-    const g=groupAt(seq,cursor);if(!g||g.start===0){vReply("已經是第一顆");return}
-    const pg=groupAt(seq,g.start-1);cursor=pg.start;renderChart();renderPad();vReply(say1(pg.items[0].t)+"重唸");return}
-  const g=groupAt(seq,cursor);
-  if(/缺牙|拔掉|沒有牙/.test(txt)){
-    if(!g){vReply("沒有可以標記的牙");return}
-    const t=g.items[0].t;T(cur,t).missing=true;T(cur,t).implant=false;touch();
-    const ns=seqOf(cur);cursor=Math.min(g.start,Math.max(0,ns.length-1));
-    // 若同一顆的另一面已在前面，cursor 指向原位置即可（缺牙後被移除）
-    renderChart();renderPad();vReply(zhNum(t)+"，缺牙");return}
-  const mob=parseMob(txt);
-  if(mob!=null){
-    const t=(VC.lastTooth&&Date.now()-VC.lastAt<20000)?VC.lastTooth:(g?g.items[0].t:null);
-    if(t==null){vReply("沒有可以設定的牙");return}
-    ET(cur,ek,t).mob=mob;touch();renderChart();
-    vReply(zhNum(t)+"，動搖度"+(mob==="D"?"D":ZN[mob]));return}
-  const bleed=/出血|流血|bleed/i.test(txt);
-  const vals=parseVals(txt.replace(/出血|流血/g," "));
-  if(vals){
+  if(VC.paused){if(M("繼續")){VC.paused=false;vReply("繼續")}else vListen();return}
+  if(M("停止")||/^停$/.test(txt)){voiceStop("已停止語音輸入");return}
+  if(M("暫停")){VC.paused=true;vReply("暫停");return}
+  if(M("繼續")){vReply("繼續");return}
+  if(M("重來")){if(!vUndo()){vReply("沒有可以重來的");return}const g=groupAt(seqOf(cur),cursor);vReply("重來"+(g?"，"+zhTooth(g.items[0].t):""));return}
+  if(M("儲存")){vSave();return}
+  if(M("初診")||M("再評估")||M("支持性")){
+    if(M("支持性")){
+      if(!hasData(cur.ex.post)){vReply("請先完成再評估");return}
+      const ns=nextSptDate(cur);if(ns&&ns>today()){vReply("還沒滿九十天");return}
+      vPush();const k="s"+uid();cur.ex[k]=blankEx();cur.spt.push({k,date:today(),doctor:cur.postDoctor||cur.doctor});touch();ek=k;mode="pl";cursor=0;renderEditor();
+      voiceStop("支持性治療只記錄牙菌斑，請改用按鍵輸入");return}
+    vPush();ek=M("初診")?"pre":"post";if(ek==="post"&&!cur.postDate)cur.postDate=today();cursor=0;VC.lastGroup=null;touch();renderEditor();
+    vReply(ek==="pre"?"初診":"再評估");return}
+  if(M("開始")){
+    const ns=seqOf(cur);if(!ns.length){vReply("沒有可以量的牙");return}
+    cursor=0;VC.lastGroup=null;renderChart();renderPad();vReply("測量已準備好，從"+zhTooth(ns[0].t)+"開始");return}
+  // 牙齒屬性：缺牙、植體、牙冠、根管、化膿、結石
+  const tagCmds=["缺牙","植體","牙冠","根管","化膿","結石"].filter(M);
+  if(tagCmds.length){
+    const {teeth,bad}=vTeethFrom(toks);if(bad){vAgain(txt);return}
+    let list=teeth;
+    if(!list.length){
+      if(tagCmds.includes("缺牙")||tagCmds.includes("植體")){const g=groupAt(seq,cursor);list=g?[g.items[0].t]:[]}
+      else{const lt=lastTarget();list=lt?[lt.t]:[]}
+    }
+    if(!list.length){vReply("沒有可以設定的牙");return}
+    vPush();
+    list.forEach(t=>tagCmds.forEach(c=>{const tt=T(cur,t);
+      if(c==="缺牙"){tt.missing=true;tt.implant=false}else if(c==="植體"){tt.missing=false;tt.implant=true}else tagSet(t,c)}));
+    touch();const ns=seqOf(cur);if(cursor>=ns.length)cursor=Math.max(0,ns.length-1);const g=groupAt(ns,cursor);if(g)cursor=g.start;
+    renderChart();renderPad();
+    vReply(list.map(zhTooth).join("、")+"，"+tagCmds.join("、"));return}
+  // 動搖度
+  if(M("動搖")){
+    const ex=toks.filter(t=>t.k==="T").map(t=>t.v);let dt=vDigits(toks);let val=null,t=null;
+    if(M("D"))val="D";
+    const ds=vDigitStr(dt);
+    if(val==null){if(ds.length===1)val=+ds;else if(ds.length===3&&validTooth(+ds.slice(0,2))){t=+ds.slice(0,2);val=+ds[2]}}
+    else if(ds.length===2&&validTooth(+ds))t=+ds;
+    if(ex.length)t=ex[0];
+    if(val==null||(val!=="D"&&(val<0||val>3))){vAgain(txt);return}
+    if(t==null){const lt=lastTarget();t=lt?lt.t:null}
+    if(t==null||T(cur,t).missing){vAgain(txt);return}
+    vPush();ET(cur,ek,t).mob=val;touch();renderChart();renderPad();
+    vReply(zhTooth(t)+"，動搖度"+zhNum(val));return}
+  // 根分岔
+  if(M("根分岔")){
+    const ds=vDigitStr(vDigits(toks));let t=null,val=null;const ex=toks.filter(x=>x.k==="T").map(x=>x.v);
+    if(ds.length===1)val=+ds;else if(ds.length===3&&validTooth(+ds.slice(0,2))){t=+ds.slice(0,2);val=+ds[2]}
+    if(ex.length)t=ex[0];
+    const lt=lastTarget();if(t==null&&lt)t=lt.t;
+    if(val==null||val>6||t==null||!FURC[t]){vAgain(txt);return}
+    let key=null;const pm=toks.find(x=>x.k==="m"&&/^(遠心|近心|頰側|舌側|顎側)$/.test(x.v));
+    if(pm)key={遠心:"d",近心:"m",頰側:"b",舌側:"l",顎側:"m"}[pm.v];
+    else{const sf=(lt&&lt.t===t)?lt.surf:"f";key=sf==="f"?"b":(t<30?"m":"l")}
+    if(!FURC[t].includes(key))key=FURC[t][0];
+    vPush();ET(cur,ek,t).furc[key]=val;touch();renderChart();renderPad();
+    vReply(zhTooth(t)+"，根分岔"+FURC_LAB[key]+zhNum(val));return}
+  // 角化牙齦
+  if(M("角化")){
+    const ds=vDigitStr(vDigits(toks));let t=null,val=null;const ex=toks.filter(x=>x.k==="T").map(x=>x.v);
+    if(ds.length===1)val=+ds;else if(ds.length===2&&!validTooth(+ds))val=+ds;else if(ds.length>=3&&validTooth(+ds.slice(0,2))){t=+ds.slice(0,2);val=+ds.slice(2)}
+    if(ex.length)t=ex[0];if(t==null){const lt=lastTarget();t=lt?lt.t:null}
+    if(val==null||val>10||t==null){vAgain(txt);return}
+    vPush();ET(cur,ek,t).km=val;touch();renderChart();renderPad();
+    vReply(zhTooth(t)+"，角化牙齦"+zhNum(val));return}
+  // 退縮／增生（GM）
+  if(M("退縮")||M("增生")){
+    const neg=M("增生");let vals=vValues(vDigits(toks));const lt=lastTarget();
+    if(!lt||!(vals.length===1||vals.length===3)||vals.some(v=>v>10)){vAgain(txt);return}
+    if(vals.length===1)vals=[vals[0],vals[0],vals[0]];
+    const pk=posKey(toks);
+    vPush();
+    lt.keys.forEach((k,i)=>{const p=k.slice(-1);if(pk&&((pk.idx!=null&&pk.idx!==i)||(typeof pk==="string"&&pk!==p)))return;SI(cur,ek,k).gm=neg?-vals[i]:vals[i]});
+    touch();renderChart();
+    vReply(pre(lt.t)+(neg?"增生":"退縮")+zhVals(vals.map(Math.abs)));return}
+  // 指定位點修改：「中間 5」「第二個改 4」「遠心改 6」
+  const pk=posKey(toks);
+  const dt=vDigits(toks);
+  if(pk&&!M("出血")&&!M("菌斑")){
+    const vals=vValues(dt);const lt=lastTarget();
+    if(vals.length===1&&lt&&vals[0]>=1&&vals[0]<=15){
+      const i=pk.idx!=null?pk.idx:lt.keys.findIndex(k=>k.slice(-1)===pk);if(i<0){vAgain(txt);return}
+      vPush();SI(cur,ek,lt.keys[i]).pd=vals[0];touch();renderChart();renderPad();
+      vReply(pre(lt.t)+{d:"遠心",c:"中間",m:"近心"}[lt.keys[i].slice(-1)]+zhNum(vals[0]));return}
+  }
+  // 牙位／面別 解析（導航或前綴）
+  const exT=toks.filter(x=>x.k==="T").map(x=>x.v);
+  let tPref=exT.length?exT[0]:null;
+  // 面別前面的數字＝牙位（例：二十一 頰側 十二 三 四）
+  const si=toks.findIndex(x=>x.k==="m"&&/^(頰側|顎側|舌側)$/.test(x.v));
+  if(tPref==null&&si>0){const before=toks.slice(0,si).filter(x=>x.k==="d"||x.k==="ten");const bs=vDigitStr(before);
+    if(bs.length===2&&validTooth(+bs)){tPref=+bs;const rest=toks.slice(si).filter(x=>x.k==="d"||x.k==="ten");dt.length=0;rest.forEach(x=>dt.push(x))}}
+  let ds=vDigitStr(dt);
+  let vals=null;
+  const sf=surfOf(toks);
+  // 全部 X → X X X
+  if(M("全部")&&!M("出血")&&!M("菌斑")&&dt.length){const v=vValues(dt);if(v.length===1&&v[0]>=1&&v[0]<=15)vals=[v[0],v[0],v[0]]}
+  if(!vals&&ds.length){
+    if(tPref==null&&(ds.length%3===2)&&validTooth(+ds.slice(0,2))&&!(ds.length===2&&false)){tPref=+ds.slice(0,2);ds=ds.slice(2)}
+    if(ds.length){
+      if(ds.length===vDigitStr(dt).length)vals=vValues(dt);else vals=ds.split("").map(Number);
+      if(vals.length%3!==0){vAgain(txt);return}
+    }
+  }
+  const navOnly=!vals||!vals.length;
+  if(navOnly&&(M("跳到")||tPref!=null||sf||M("上一顆")||M("下一顆")||M("下一面")||M("下顎")||M("上顎"))&&!M("出血")&&!M("菌斑")){
+    let g=null;const s2=seqOf(cur);const curG=groupAt(s2,cursor);
+    if(tPref!=null){if(T(cur,tPref).missing){vReply(zhTooth(tPref)+"，缺牙");return}g=findGroup(tPref,sf)}
+    else if(sf&&curG)g=findGroup(curG.items[0].t,sf);
+    else if(M("上一顆")){if(curG&&curG.start>0)g=groupAt(s2,curG.start-1);else{vReply("已經是第一顆");return}}
+    else if(M("下一顆")){if(curG&&curG.end<s2.length)g=groupAt(s2,curG.end);else{vReply("已經是最後一顆");return}}
+    else if(M("下一面")&&curG){const i=s2.findIndex((x,j)=>j>=curG.end&&x.surf!==curG.items[0].surf);const k=s2.findIndex((x,j)=>j>=curG.end&&(x.surf!==curG.items[0].surf||(x.t<30)!==(curG.items[0].t<30)));g=k>=0?groupAt(s2,k):null}
+    else if(M("下顎")){const i=s2.findIndex(x=>x.t>30);g=i>=0?groupAt(s2,i):null}
+    else if(M("上顎")){const i=s2.findIndex(x=>x.t<30);g=i>=0?groupAt(s2,i):null}
+    if(!g){vAgain(txt);return}
+    cursor=g.start;renderChart();renderPad();
+    const c=g.items[0];vReply(zhTooth(c.t)+(c.surf==="f"?"頰側":c.t<30?"顎側":"舌側"));return}
+  // 填 PD（可含牙位／面別前綴、出血、菌斑）
+  if(vals&&vals.length){
+    if(vals.some(v=>v<1||v>15)){vAgain(txt);return}
+    let s2=seqOf(cur);let g=null;
+    if(tPref!=null){if(T(cur,tPref).missing){vReply(zhTooth(tPref)+"，缺牙");return}g=findGroup(tPref,sf)}
+    else if(sf){const cg=groupAt(s2,cursor);g=cg?findGroup(cg.items[0].t,sf):null}
+    else g=groupAt(s2,cursor);
     if(!g){vReply("已經全部完成");return}
-    if(g.items.length!==3||vals.some(v=>v<1||v>15)){vReply("沒聽清楚，請再唸一次");vStatus("沒聽清楚",txt);return}
-    const prev={};g.items.forEach((c,i)=>{const k=c.t+c.surf+c.p;const s=SI(cur,ek,k);prev[k]=Object.assign({},s);s.pd=vals[i];if(bleed){s.bop=true;s.bopSet=true}});
-    touch();const t=g.items[0].t;VC.undo={prev,firstKey:g.items[0].t+g.items[0].surf+g.items[0].p,t};VC.lastTooth=t;VC.lastAt=Date.now();
-    const done=g.end>=seq.length;cursor=done?g.start:g.end;renderChart();renderPad();
-    let msg=say1(t)+zhVals(vals)+(bleed?"，出血":"");
-    if(done){VC.finishAfter=true;vReply(msg+"，全部完成");return}
+    vPush();
+    const bleed=M("出血"),plaque=M("菌斑");const bpk=posKey(toks);
+    const filled=[];let idx=g.start,k=0;
+    while(k<vals.length){const gg=groupAt(s2,idx);if(!gg)break;
+      const chunk=vals.slice(k,k+gg.items.length);if(chunk.length<gg.items.length)break;
+      gg.items.forEach((c,i)=>{const s=SI(cur,ek,c.t+c.surf+c.p);s.pd=chunk[i]});
+      filled.push({g:gg,vals:chunk});k+=gg.items.length;idx=gg.end;}
+    if(!filled.length){VC.stack.pop();vAgain(txt);return}
+    const last=filled[filled.length-1];
+    if(bleed||plaque){last.g.items.forEach((c,i)=>{if(bpk&&((bpk.idx!=null&&bpk.idx!==i)||(typeof bpk==="string"&&bpk!==c.p)))return;const s=SI(cur,ek,c.t+c.surf+c.p);if(bleed){s.bop=true;s.bopSet=true}if(plaque){s.pl=true;s.plSet=true}})}
+    touch();
+    VC.lastGroup={t:last.g.items[0].t,surf:last.g.items[0].surf,keys:last.g.items.map(c=>c.t+c.surf+c.p)};VC.lastAt=Date.now();
+    s2=seqOf(cur);const done=last.g.end>=s2.length;cursor=done?last.g.start:last.g.end;renderChart();renderPad();
+    let msg=filled.map(f=>pre(f.g.items[0].t)+zhVals(f.vals)).join("，");
+    if(bleed)msg+="，"+(bpk&&typeof bpk==="string"?{d:"遠心",m:"近心",c:"中間"}[bpk]:"")+"出血";
+    if(plaque)msg+="，菌斑";
+    if(done){VC.finishAfter=true;msg+="，全部完成，五毫米以上"+zhNum(stats(cur,ek).n5)+"處"}
     vReply(msg);return}
-  if(bleed){
-    if(!VC.undo){vReply("請先唸數字");return}
-    Object.keys(VC.undo.prev).forEach(k=>{const s=SI(cur,ek,k);s.bop=true;s.bopSet=true});touch();renderChart();
-    vReply(zhNum(VC.undo.t)+"，出血");return}
-  vReply("沒聽清楚，請再唸一次");vStatus("沒聽清楚",txt);
+  // 只說出血／菌斑：套用到剛量的那組
+  if(M("出血")||M("菌斑")){
+    const lt=VC.lastGroup;if(!lt){vReply("請先唸數字");return}
+    const bpk=posKey(toks);vPush();
+    lt.keys.forEach((k,i)=>{const p=k.slice(-1);if(bpk&&((bpk.idx!=null&&bpk.idx!==i)||(typeof bpk==="string"&&bpk!==p)))return;const s=SI(cur,ek,k);if(M("出血")){s.bop=true;s.bopSet=true}if(M("菌斑")){s.pl=true;s.plSet=true}});
+    touch();renderChart();
+    vReply(zhTooth(lt.t)+"，"+(bpk&&typeof bpk==="string"?{d:"遠心",m:"近心",c:"中間"}[bpk]:bpk&&bpk.idx!=null?"第"+ZN[bpk.idx+1]+"個":"")+(M("出血")?"出血":"菌斑"));return}
+  vAgain(txt);
 }
+async function vSave(){
+  vStatus("產生圖片中…");VC.phase="busy";try{VC.rec.abort()}catch(e){}
+  try{
+    await loadLib(LIB.h2c);if(document.fonts&&document.fonts.ready)await document.fonts.ready;
+    const root=$("#printRoot");root.innerHTML='<div class="pg pg-l">'+simplePage(cur)+'</div>';
+    const canvas=await window.html2canvas(root.firstChild,{scale:2.5,backgroundColor:"#ffffff",logging:false});root.innerHTML="";
+    const blob=await new Promise(res=>canvas.toBlob(res,"image/png"));VC.png={blob,name:cur.code+"_簡易版.png"};
+    try{await imgPut("simple:"+cur.id,blob)}catch(e){}
+    openSheet('<h3>圖片已準備好</h3><p>點下方按鈕，再選「儲存影像」就會存進相簿。</p><img src="'+URL.createObjectURL(blob)+'" style="width:100%;border-radius:8px;border:1px solid var(--line)"><div class="actions"><button class="btn" id="svC">關閉</button><button class="btn primary" id="svG" style="font-size:18px;min-height:52px">存到相簿</button></div>');
+    $("#svC").onclick=closeSheet;
+    $("#svG").onclick=async()=>{const f=new File([VC.png.blob],VC.png.name,{type:"image/png"});
+      try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f]});closeSheet();return}}catch(e){if(e&&e.name==="AbortError")return}
+      await deliver(VC.png.name,VC.png.blob);closeSheet()};
+    vReply("已準備好");
+  }catch(e){vReply("圖片產生失敗")}
+}
+async function vWake(on){try{if(on&&navigator.wakeLock){VC.wake=await navigator.wakeLock.request("screen")}else if(!on&&VC.wake){await VC.wake.release();VC.wake=null}}catch(e){}}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&VC.on)vWake(true)});
 function voiceStart(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){
-    openSheet('<h3>這個瀏覽器不支援語音輸入</h3><p>請改用 iPad／iPhone 的 Safari，或電腦的 Chrome、Edge。</p><p class="hint">備案：點一下數字格，再按鍵盤上的麥克風（聽寫）也可以唸數字。</p><div class="actions"><button class="btn primary" id="vNo">好</button></div>');
+    openSheet('<h3>這個瀏覽器不支援語音輸入</h3><p>請改用 iPad／iPhone 的 Safari，或電腦的 Chrome、Edge。</p><div class="actions"><button class="btn primary" id="vNo">好</button></div>');
     $("#vNo").onclick=closeSheet;return}
   if(mode!=="pd"){mode="pd";renderEditor()}
   const seq=seqOf(cur);const g=groupAt(seq,cursor);if(g)cursor=g.start;
-  // iOS：在使用者點擊時先解鎖聲音
   try{const ac=VC.ac||(VC.ac=new(window.AudioContext||window.webkitAudioContext)());ac.resume()}catch(e){}
   try{const u=new SpeechSynthesisUtterance(" ");u.volume=0;speechSynthesis.speak(u)}catch(e){}
   const rec=new SR();rec.lang="zh-TW";rec.continuous=false;rec.interimResults=false;rec.maxAlternatives=3;
   rec.onresult=ev=>{
     if(VC.phase!=="listen")return;VC.phase="busy";
     const alts=[...ev.results[ev.results.length-1]].map(a=>a.transcript);
-    let pick=alts.find(a=>parseVals(a.replace(/出血|流血/g," "))||/重來|重新|上一顆|缺牙|出血|停止|動搖/.test(a))||alts[0];
+    const score=a=>{const t=vTokens(a);return t.length};
+    let pick=alts.slice().sort((a,b)=>score(b)-score(a))[0]||alts[0];
     vStatus("聽到："+pick,pick);vHandle(pick)};
-  rec.onerror=ev=>{
-    if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){voiceStop("無法使用麥克風：請在瀏覽器設定允許麥克風");return}
-  };
+  rec.onerror=ev=>{if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){voiceStop("無法使用麥克風：請在設定允許麥克風");return}
+    if(ev.error&&ev.error!=="no-speech"&&ev.error!=="aborted")vStatus("麥克風狀態："+ev.error)};
   rec.onend=()=>{if(VC.on&&VC.phase==="listen")setTimeout(()=>{if(VC.on&&VC.phase==="listen")try{rec.start()}catch(e){}},150)};
-  VC.rec=rec;VC.on=true;VC.heard="";VC.undo=null;VC.lastTooth=null;VC.finishAfter=false;
-  renderPad();beep();setTimeout(vListen,200);
+  VC.rec=rec;VC.on=true;VC.heard="";VC.stack=[];VC.lastGroup=null;VC.paused=false;VC.finishAfter=false;
+  vWake(true);renderPad();beep();setTimeout(vListen,200);
 }
 function voiceStop(msg){
-  VC.on=false;VC.phase="idle";try{VC.rec&&VC.rec.abort()}catch(e){}try{speechSynthesis.cancel()}catch(e){}
-  renderPad();if(msg)toast(msg);
+  VC.on=false;VC.phase="idle";VC.paused=false;try{VC.rec&&VC.rec.abort()}catch(e){}try{speechSynthesis.cancel()}catch(e){}
+  vWake(false);renderPad();if(msg)toast(msg);
 }
 function voicePanel(){
   if(!VC.on)return'<button class="btn voicebtn" data-voice="start">🎤 語音輸入</button>';
-  return'<div class="vpanel"><div><span class="vdot"></span><b id="vStat">請唸數字…</b><div class="vheard" id="vHeard">'+esc(VC.heard||"")+'</div>'+
-    '<div class="hint" style="margin:2px 0 0">唸 3 個數字（如「三二三」），也可說：重來、上一顆、缺牙、出血、動搖度 2、停止</div></div>'+
+  return'<div class="vpanel"><div><span class="vdot"></span><b id="vStat">請說…</b><div class="vheard" id="vHeard">'+esc(VC.heard||"")+'</div>'+
+    '<div class="hint" style="margin:2px 0 0">先說缺牙、植體 → 說「開始測量」→ 一路唸「三二三」。可說：重來、出血、動搖度 2、跳到 36、儲存、停止</div></div>'+
     '<button class="btn danger" data-voice="stop">停止語音</button></div>';
 }
 
@@ -1250,9 +1491,14 @@ function renderSettings(){
   '<div class="card"><h2>語音輸入</h2><p>醫師唸 3 個數字後，App 會回報並「嗶」一聲，聽到嗶聲再唸下一組。</p>'+
    '<div class="fieldrow"><span>回報內容</span><div class="chips">'+[["tooth","加牙位（18，323）"],["digits","只唸數字"],["beep","只有嗶聲"]].map(o=>'<button class="chip" data-vmode="'+o[0]+'" aria-pressed="'+(vset().mode===o[0])+'">'+o[1]+'</button>').join("")+'</div></div>'+
    '<div class="fieldrow" style="margin-top:8px"><span>語速</span><div class="chips">'+[1,1.5,2].map(r=>'<button class="chip" data-vrate="'+r+'" aria-pressed="'+(vset().rate===r)+'">'+r+' 倍</button>').join("")+'</div></div>'+
-   '<div class="actions" style="margin-top:10px"><button class="btn" id="vTest">試聽</button></div></div>'+
+   '<div class="actions" style="margin-top:10px"><button class="btn" id="vTest">試聽</button></div>'+
+   '<h2 style="margin-top:14px">自訂對照表</h2><p>常聽錯的詞可以自己加，例如「趴拉」→「顎側」。</p><div class="doclist">'+
+   vset().custom.map((c,i)=>'<div><span style="flex:1">聽到「'+esc(c.from)+'」→ 當成「'+esc(c.to)+'」</span><button class="btn ghost" data-delmap="'+i+'">移除</button></div>').join("")+
+   '</div><div class="two"><input id="mapF" placeholder="聽到的字" class="search" style="margin:0"><input id="mapT" placeholder="當成" class="search" style="margin:0"></div><div class="actions" style="margin-top:10px"><button class="btn" id="mapAdd">新增對照</button></div></div>'+
   '<div class="card"><h2>這台裝置的資料</h2><p>共 '+S.records.length+' 位病人，約 '+size+' KB。資料只存在這台裝置的瀏覽器中；清除瀏覽器資料會一併刪除，請定期備份。</p></div>';
   $("#setBody").querySelectorAll("[data-vmode],[data-vrate]").forEach(b=>b.onclick=()=>{S.voice=vset();if(b.dataset.vmode)S.voice.mode=b.dataset.vmode;if(b.dataset.vrate)S.voice.rate=+b.dataset.vrate;persist();renderSettings()});
+  $("#mapAdd").onclick=()=>{const f=$("#mapF").value.trim(),t=$("#mapT").value.trim();if(!f){toast("請填聽到的字");return}S.voice=vset();S.voice.custom=S.voice.custom.concat({from:f,to:t});persist();renderSettings()};
+  $("#setBody").querySelectorAll("[data-delmap]").forEach(b=>b.onclick=()=>{S.voice=vset();S.voice.custom=S.voice.custom.filter((_,i)=>i!==+b.dataset.delmap);persist();renderSettings()});
   $("#vTest").onclick=()=>{const m=vset().mode;say(m==="digits"?"三二三":m==="beep"?"":"十八，三二三",beep)};
   $("#expNew").onclick=()=>doExport(true);$("#expAll").onclick=()=>doExport(false);
   $("#impFile").onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>mergeImport(rd.result);rd.readAsText(f);e.target.value=""};
@@ -1268,7 +1514,7 @@ if("serviceWorker" in navigator&&location.protocol==="https:"&&!/claude\.ai|clau
 }
 bindXray();
 renderHome();
-window.__lw={get S(){return S},vHandle,parseVals,parseMob,VC,voiceStart,toothPos,exportSimplePng,printSimple,openXray,exportPlaque,status,openRec,exportSimplePdf,exportSimpleXlsx,exportAudit,renderPages,simplePage,auditPage1,auditPage2};
+window.__lw={get S(){return S},get cursor(){return cursor},get ek(){return ek},vHandle,vTokens,VC,voiceStart,toothPos,exportSimplePng,printSimple,openXray,exportPlaque,status,openRec,exportSimplePdf,exportSimpleXlsx,exportAudit,renderPages,simplePage,auditPage1,auditPage2};
 })();
 </script>
 </body>
