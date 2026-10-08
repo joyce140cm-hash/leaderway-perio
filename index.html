@@ -160,6 +160,14 @@ textarea.raw{width:100%;min-height:140px;font-family:var(--num);font-size:12px;b
   body.printing{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #printArea .pg{page-break-after:avoid}
 }
+.vrow{margin:0 0 8px;max-width:560px}
+.voicebtn{width:100%;min-height:46px;font-size:16px;border-color:var(--accent);color:var(--accent);font-weight:600}
+.vpanel{display:flex;gap:10px;align-items:center;justify-content:space-between;border:2px solid var(--accent);background:var(--accent-soft);border-radius:12px;padding:10px 12px}
+.vpanel b{font-size:16px}
+.vpanel .btn{white-space:nowrap;flex:0 0 auto}
+.vheard{font-family:var(--num);font-size:22px;font-weight:600;min-height:28px;letter-spacing:.06em}
+.vdot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--deep);margin-right:8px;vertical-align:1px}
+@media (prefers-reduced-motion:no-preference){.vdot{animation:vp 1s ease-in-out infinite}@keyframes vp{50%{opacity:.25}}}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;z-index:60;max-width:90vw}
 @media (prefers-reduced-motion:no-preference){.toast{animation:pop .18s ease-out}@keyframes pop{from{opacity:0;transform:translate(-50%,8px)}}}
 @media (max-width:560px){.bar h1{font-size:16px}.bar h1 small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar .btn{padding:6px 10px;font-size:14px;min-height:36px}.bar .wrap{gap:6px;padding:0 10px}}
@@ -435,7 +443,7 @@ function seqOf(r){
 
 /* ================= navigation ================= */
 let cur=null,ek="pre",mode="pd",cursor=0,selTooth=16;
-function go(v){["home","editor","settings","xray"].forEach(id=>$("#"+id).hidden=id!==v);window.scrollTo(0,0);
+function go(v){if(v!=="editor"&&typeof VC!=="undefined"&&VC.on)voiceStop();["home","editor","settings","xray"].forEach(id=>$("#"+id).hidden=id!==v);window.scrollTo(0,0);
   if(v==="home")renderHome();if(v==="settings")renderSettings();if(v==="editor")renderEditor();}
 function openRec(r){cur=r;ek=hasData(r.ex.post)?"post":"pre";mode="pd";cursor=0;go("editor")}
 document.addEventListener("click",e=>{
@@ -583,6 +591,7 @@ function newCourse(){
 /* ================= editor ================= */
 function renderEditor(){
   if(!cur){go("home");return}
+  if(VC.on&&mode!=="pd")voiceStop("已停止語音輸入");
   $("#edTitle").innerHTML=esc(cur.name||"（未填姓名）")+'<small>'+esc(cur.code)+'・'+esc(cur.doctor.zh)+' 醫師</small>';
   $("#exams").innerHTML=["pre","post"].map(k=>{const d=k==="pre"?cur.preDate:cur.postDate;
     return'<button class="exam" data-ek="'+k+'" aria-pressed="'+(k===ek)+'">'+EXN[k]+'<small>'+(d?esc(d):(k==="post"?"尚未進行":""))+'</small></button>'}).join("")+
@@ -666,9 +675,11 @@ function renderPad(){
   else if(mode==="bop")keys='<button class="key wide yes" data-v="1">● 出血</button><button class="key wide" data-v="0">無</button>';
   else if(mode==="pl")keys='<button class="key wide plyes" data-v="1">● 有菌斑</button><button class="key wide" data-v="0">無</button>';
   pad.innerHTML='<div class="padhead"><span><span class="exbadge">'+(ek==="pre"?"術前":ek==="post"?"術後":"91018C")+'</span> <b>'+cc.t+'</b> '+surfName+' '+pn+'・目前：'+val+'</span><span class="hint" style="margin:0">'+(cursor+1)+' / '+seq.length+'</span></div>'+
+    (mode==="pd"?'<div class="vrow">'+voicePanel()+'</div>':'')+
     '<div class="keys">'+keys+'</div><div class="navrow"><button class="btn" data-nav="-1">‹ 上一格</button><button class="btn" data-nav="clr">清除</button><button class="btn" data-nav="1">下一格 ›</button></div>';
 }
 $("#pad").addEventListener("click",e=>{
+  const vb=e.target.closest("[data-voice]");if(vb){if(vb.dataset.voice==="start")voiceStart();else voiceStop("已停止語音輸入");return}
   if(mode==="tooth"){toothClick(e);return}
   const n=e.target.closest("[data-nav]"),k=e.target.closest("[data-v]");const seq=seqOf(cur);
   if(n){const v=n.dataset.nav;
@@ -1057,6 +1068,149 @@ function bindXray(){
   window.addEventListener("resize",()=>{if(!$("#xray").hidden)drawXray()});
 }
 
+/* ================= voice input ================= */
+const VC={on:false,rec:null,phase:"idle",last:null,undo:null,heard:"",ac:null,lastTooth:null,lastAt:0};
+const ZD={"零":0,"〇":0,"一":1,"么":1,"壹":1,"二":2,"兩":2,"两":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9};
+const ZN=["零","一","二","三","四","五","六","七","八","九"];
+function vset(){S.voice=S.voice||{};return Object.assign({mode:"tooth",rate:1.5},S.voice)}
+function zhNum(n){if(n<10)return ZN[n];if(n===10)return"十";if(n<20)return"十"+ZN[n%10];return ZN[Math.floor(n/10)]+"十"+(n%10?ZN[n%10]:"")}
+function zhVals(vals){return vals.some(v=>v>=10)?vals.map(zhNum).join("、"):vals.map(v=>ZN[v]).join("")}
+function parseVals(txt){
+  let s=String(txt).replace(/[，,。．.、！!？?：:；;]/g," ").trim();
+  if(/[百]/.test(s))s=s.replace(/[百十]/g,"");
+  // 阿拉伯數字以空白分隔且剛好三組：可能含 10 以上
+  const arab=s.match(/\d+/g);
+  if(arab&&!/[零〇一么壹二兩两三四五六七八九十]/.test(s)){
+    if(arab.length===3)return arab.map(Number);
+    const d=arab.join("");if(d.length===3)return d.split("").map(Number);
+    return null;
+  }
+  const out=[];
+  for(let i=0;i<s.length;i++){const c=s[i];
+    if(/\d/.test(c)){out.push(+c);continue}
+    if(c==="十"){const nx=ZD[s[i+1]];if(nx!=null&&nx>0&&nx<=5){out.push(10+nx);i++}else out.push(10);continue}
+    if(ZD[c]!=null)out.push(ZD[c]);
+  }
+  return out.length===3?out:null;
+}
+function parseMob(txt){
+  const m=String(txt).match(/動搖(?:度)?\s*([0-3零〇一二兩两三Dd]|垂直|弟|低|地)/);
+  if(!m)return null;const c=m[1];
+  if(/[Dd弟低地]|垂直/.test(c))return"D";
+  return /\d/.test(c)?+c:ZD[c];
+}
+function beep(){
+  try{const ac=VC.ac||(VC.ac=new(window.AudioContext||window.webkitAudioContext)());
+    if(ac.state==="suspended")ac.resume();
+    const o=ac.createOscillator(),g=ac.createGain();o.type="sine";o.frequency.value=1250;
+    g.gain.setValueAtTime(.0001,ac.currentTime);g.gain.exponentialRampToValueAtTime(.35,ac.currentTime+.01);g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+.16);
+    o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+.18);
+  }catch(e){}
+}
+function zhVoice(){const vs=speechSynthesis.getVoices();return vs.find(v=>/zh[-_]TW/i.test(v.lang))||vs.find(v=>/zh/i.test(v.lang))||null}
+function say(text,cb){
+  const st=vset();
+  const next=()=>{if(cb)setTimeout(cb,40)};
+  if(st.mode==="beep"||!("speechSynthesis" in window)||!text){next();return}
+  try{
+    speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(text);u.lang="zh-TW";u.rate=st.rate;const v=zhVoice();if(v)u.voice=v;
+    let done=false;const fin=()=>{if(done)return;done=true;next()};
+    u.onend=fin;u.onerror=fin;setTimeout(fin,Math.max(2500,text.length*450/st.rate));
+    speechSynthesis.speak(u);
+  }catch(e){next()}
+}
+function groupAt(seq,i){
+  const c=seq[i];if(!c)return null;let s=i;while(s>0&&seq[s-1].t===c.t&&seq[s-1].surf===c.surf)s--;
+  let e=s;while(e<seq.length&&seq[e].t===c.t&&seq[e].surf===c.surf)e++;return{start:s,end:e,items:seq.slice(s,e)}}
+function vStatus(msg,heard){const el=$("#vStat");if(el)el.textContent=msg;if(heard!=null){VC.heard=heard;const h=$("#vHeard");if(h)h.textContent=heard}}
+function vListen(){
+  if(!VC.on)return;
+  VC.phase="listen";vStatus("請唸數字…");
+  try{VC.rec.start()}catch(e){setTimeout(()=>{if(VC.on&&VC.phase==="listen")try{VC.rec.start()}catch(_){}},300)}
+}
+function vReply(text){
+  VC.phase="speak";vStatus("回報中…");
+  try{VC.rec.abort()}catch(e){}
+  say(text,()=>{if(!VC.on)return;beep();if(VC.finishAfter){voiceStop("全部完成，已停止語音輸入");return}setTimeout(vListen,180)});
+}
+function vHandle(raw){
+  const txt=String(raw||"").trim();if(!txt){vListen();return}
+  const seq=seqOf(cur);
+  const say1=(t)=>vset().mode==="digits"?"":zhNum(t)+"，";
+  if(/停止|結束|停/.test(txt)&&txt.length<=4){voiceStop("已停止語音輸入");return}
+  if(/重來|重新|重唸|重念|再來/.test(txt)){
+    if(!VC.undo){vReply("沒有可以重來的");return}
+    const u=VC.undo;Object.keys(u.prev).forEach(k=>{cur.ex[ek].sites[k]=u.prev[k]});touch();
+    const i=seqOf(cur).findIndex(x=>x.t+x.surf+x.p===u.firstKey);cursor=i>=0?i:cursor;VC.undo=null;renderChart();renderPad();
+    vReply(say1(u.t)+"重來");return}
+  if(/上一顆|上一個|上一格|前一顆/.test(txt)){
+    const g=groupAt(seq,cursor);if(!g||g.start===0){vReply("已經是第一顆");return}
+    const pg=groupAt(seq,g.start-1);cursor=pg.start;renderChart();renderPad();vReply(say1(pg.items[0].t)+"重唸");return}
+  const g=groupAt(seq,cursor);
+  if(/缺牙|拔掉|沒有牙/.test(txt)){
+    if(!g){vReply("沒有可以標記的牙");return}
+    const t=g.items[0].t;T(cur,t).missing=true;T(cur,t).implant=false;touch();
+    const ns=seqOf(cur);cursor=Math.min(g.start,Math.max(0,ns.length-1));
+    // 若同一顆的另一面已在前面，cursor 指向原位置即可（缺牙後被移除）
+    renderChart();renderPad();vReply(zhNum(t)+"，缺牙");return}
+  const mob=parseMob(txt);
+  if(mob!=null){
+    const t=(VC.lastTooth&&Date.now()-VC.lastAt<20000)?VC.lastTooth:(g?g.items[0].t:null);
+    if(t==null){vReply("沒有可以設定的牙");return}
+    ET(cur,ek,t).mob=mob;touch();renderChart();
+    vReply(zhNum(t)+"，動搖度"+(mob==="D"?"D":ZN[mob]));return}
+  const bleed=/出血|流血|bleed/i.test(txt);
+  const vals=parseVals(txt.replace(/出血|流血/g," "));
+  if(vals){
+    if(!g){vReply("已經全部完成");return}
+    if(g.items.length!==3||vals.some(v=>v<1||v>15)){vReply("沒聽清楚，請再唸一次");vStatus("沒聽清楚",txt);return}
+    const prev={};g.items.forEach((c,i)=>{const k=c.t+c.surf+c.p;const s=SI(cur,ek,k);prev[k]=Object.assign({},s);s.pd=vals[i];if(bleed){s.bop=true;s.bopSet=true}});
+    touch();const t=g.items[0].t;VC.undo={prev,firstKey:g.items[0].t+g.items[0].surf+g.items[0].p,t};VC.lastTooth=t;VC.lastAt=Date.now();
+    const done=g.end>=seq.length;cursor=done?g.start:g.end;renderChart();renderPad();
+    let msg=say1(t)+zhVals(vals)+(bleed?"，出血":"");
+    if(done){VC.finishAfter=true;vReply(msg+"，全部完成");return}
+    vReply(msg);return}
+  if(bleed){
+    if(!VC.undo){vReply("請先唸數字");return}
+    Object.keys(VC.undo.prev).forEach(k=>{const s=SI(cur,ek,k);s.bop=true;s.bopSet=true});touch();renderChart();
+    vReply(zhNum(VC.undo.t)+"，出血");return}
+  vReply("沒聽清楚，請再唸一次");vStatus("沒聽清楚",txt);
+}
+function voiceStart(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){
+    openSheet('<h3>這個瀏覽器不支援語音輸入</h3><p>請改用 iPad／iPhone 的 Safari，或電腦的 Chrome、Edge。</p><p class="hint">備案：點一下數字格，再按鍵盤上的麥克風（聽寫）也可以唸數字。</p><div class="actions"><button class="btn primary" id="vNo">好</button></div>');
+    $("#vNo").onclick=closeSheet;return}
+  if(mode!=="pd"){mode="pd";renderEditor()}
+  const seq=seqOf(cur);const g=groupAt(seq,cursor);if(g)cursor=g.start;
+  // iOS：在使用者點擊時先解鎖聲音
+  try{const ac=VC.ac||(VC.ac=new(window.AudioContext||window.webkitAudioContext)());ac.resume()}catch(e){}
+  try{const u=new SpeechSynthesisUtterance(" ");u.volume=0;speechSynthesis.speak(u)}catch(e){}
+  const rec=new SR();rec.lang="zh-TW";rec.continuous=false;rec.interimResults=false;rec.maxAlternatives=3;
+  rec.onresult=ev=>{
+    if(VC.phase!=="listen")return;VC.phase="busy";
+    const alts=[...ev.results[ev.results.length-1]].map(a=>a.transcript);
+    let pick=alts.find(a=>parseVals(a.replace(/出血|流血/g," "))||/重來|重新|上一顆|缺牙|出血|停止|動搖/.test(a))||alts[0];
+    vStatus("聽到："+pick,pick);vHandle(pick)};
+  rec.onerror=ev=>{
+    if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){voiceStop("無法使用麥克風：請在瀏覽器設定允許麥克風");return}
+  };
+  rec.onend=()=>{if(VC.on&&VC.phase==="listen")setTimeout(()=>{if(VC.on&&VC.phase==="listen")try{rec.start()}catch(e){}},150)};
+  VC.rec=rec;VC.on=true;VC.heard="";VC.undo=null;VC.lastTooth=null;VC.finishAfter=false;
+  renderPad();beep();setTimeout(vListen,200);
+}
+function voiceStop(msg){
+  VC.on=false;VC.phase="idle";try{VC.rec&&VC.rec.abort()}catch(e){}try{speechSynthesis.cancel()}catch(e){}
+  renderPad();if(msg)toast(msg);
+}
+function voicePanel(){
+  if(!VC.on)return'<button class="btn voicebtn" data-voice="start">🎤 語音輸入</button>';
+  return'<div class="vpanel"><div><span class="vdot"></span><b id="vStat">請唸數字…</b><div class="vheard" id="vHeard">'+esc(VC.heard||"")+'</div>'+
+    '<div class="hint" style="margin:2px 0 0">唸 3 個數字（如「三二三」），也可說：重來、上一顆、缺牙、出血、動搖度 2、停止</div></div>'+
+    '<button class="btn danger" data-voice="stop">停止語音</button></div>';
+}
+
 /* ================= backup ================= */
 function pack(recs){return JSON.stringify({app:"leaderway-perio",version:2,exportedAt:new Date().toISOString(),records:recs})}
 function stamp(){const d=new Date();return ymd(today())+"_"+String(d.getHours()).padStart(2,"0")+String(d.getMinutes()).padStart(2,"0")}
@@ -1093,7 +1247,13 @@ function renderSettings(){
   '<div class="card"><h2>醫師名單</h2><p>英文姓用於檔名開頭，例如 Huang2026100601。</p><div class="doclist">'+
    S.doctors.map((d,i)=>'<div><span style="flex:1">'+esc(d.zh)+'</span><code>'+esc(d.en)+'</code><button class="btn ghost" data-deldoc="'+i+'">移除</button></div>').join("")+
    '</div><div class="two"><input id="dz" placeholder="中文姓名" class="search" style="margin:0"><input id="de" placeholder="英文姓，如 Lin" class="search" style="margin:0"></div><div class="actions" style="margin-top:10px"><button class="btn" id="addDoc">新增醫師</button></div></div>'+
+  '<div class="card"><h2>語音輸入</h2><p>醫師唸 3 個數字後，App 會回報並「嗶」一聲，聽到嗶聲再唸下一組。</p>'+
+   '<div class="fieldrow"><span>回報內容</span><div class="chips">'+[["tooth","加牙位（18，323）"],["digits","只唸數字"],["beep","只有嗶聲"]].map(o=>'<button class="chip" data-vmode="'+o[0]+'" aria-pressed="'+(vset().mode===o[0])+'">'+o[1]+'</button>').join("")+'</div></div>'+
+   '<div class="fieldrow" style="margin-top:8px"><span>語速</span><div class="chips">'+[1,1.5,2].map(r=>'<button class="chip" data-vrate="'+r+'" aria-pressed="'+(vset().rate===r)+'">'+r+' 倍</button>').join("")+'</div></div>'+
+   '<div class="actions" style="margin-top:10px"><button class="btn" id="vTest">試聽</button></div></div>'+
   '<div class="card"><h2>這台裝置的資料</h2><p>共 '+S.records.length+' 位病人，約 '+size+' KB。資料只存在這台裝置的瀏覽器中；清除瀏覽器資料會一併刪除，請定期備份。</p></div>';
+  $("#setBody").querySelectorAll("[data-vmode],[data-vrate]").forEach(b=>b.onclick=()=>{S.voice=vset();if(b.dataset.vmode)S.voice.mode=b.dataset.vmode;if(b.dataset.vrate)S.voice.rate=+b.dataset.vrate;persist();renderSettings()});
+  $("#vTest").onclick=()=>{const m=vset().mode;say(m==="digits"?"三二三":m==="beep"?"":"十八，三二三",beep)};
   $("#expNew").onclick=()=>doExport(true);$("#expAll").onclick=()=>doExport(false);
   $("#impFile").onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>mergeImport(rd.result);rd.readAsText(f);e.target.value=""};
   $("#addDoc").onclick=()=>{const zh=$("#dz").value.trim(),en=$("#de").value.trim().replace(/[^A-Za-z]/g,"");
@@ -1108,7 +1268,7 @@ if("serviceWorker" in navigator&&location.protocol==="https:"&&!/claude\.ai|clau
 }
 bindXray();
 renderHome();
-window.__lw={get S(){return S},toothPos,exportSimplePng,printSimple,openXray,exportPlaque,status,openRec,exportSimplePdf,exportSimpleXlsx,exportAudit,renderPages,simplePage,auditPage1,auditPage2};
+window.__lw={get S(){return S},vHandle,parseVals,parseMob,VC,voiceStart,toothPos,exportSimplePng,printSimple,openXray,exportPlaque,status,openRec,exportSimplePdf,exportSimpleXlsx,exportAudit,renderPages,simplePage,auditPage1,auditPage2};
 })();
 </script>
 </body>
